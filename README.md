@@ -5,6 +5,6 @@ Este projeto consiste na criação de uma biblioteca JavaScript como parte da di
 
 ## Instalação
 
-1.Clone o repositório:
+1. Clone o repositório:
 
-git clone <URL_DO_REPOSITORIO>'
+git clone <URL_DO_REPOSITORIO>
