@@ -40,15 +40,12 @@ Thumbs.db
 # Arquivos específicos do React
 *.module.css.d.ts
 
-# Configurações específicas do ECharts e TanStack (se aplicável)
+# Configurações específicas do ECharts e TanStack
 *.config.js
 *.chartConfig.js
 
 # Relatórios de cobertura de testes
 coverage/
-
-# Cache do Parcel (caso seja usado)
-.parcel-cache/
 
 # Ignorar todos os arquivos de log de debug do npm
 npm-debug.log*
