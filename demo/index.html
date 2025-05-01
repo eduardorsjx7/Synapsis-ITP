@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard Kit - Múltiplos Gráficos</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts-dashboard-kit@1.1.6/dist/index.umd.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 2rem;
+      background: #f4f4f4;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .grafico {
+      background: white;
+      border-radius: 8px;
+      padding: 1rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      height: 400px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Gráficos com ECharts Dashboard Kit</h1>
+  <div class="grid">
+    <div id="grafico-bar" class="grafico"></div>
+    <div id="grafico-linha" class="grafico"></div>
+    <div id="grafico-area" class="grafico"></div>
+    <div id="grafico-pizza" class="grafico"></div>
+  </div>
+
+  <script>
+    const dados = [
+      { categoria: 'A', valor: 10 },
+      { categoria: 'B', valor: 20 },
+      { categoria: 'C', valor: 15 },
+      { categoria: 'A', valor: 5 },
+      { categoria: 'B', valor: 5 },
+      { categoria: 'C', valor: 10 },
+    ];
+
+    const { criarGrafico } = echartsDashboardKit;
+
+    criarGrafico(document.getElementById('grafico-bar'), 'bar', 'categoria', 'grupo1', dados);
+    criarGrafico(document.getElementById('grafico-linha'), 'line', 'categoria', 'grupo2', dados);
+    criarGrafico(document.getElementById('grafico-area'), 'area', 'categoria', 'grupo3', dados);
+    criarGrafico(document.getElementById('grafico-pizza'), 'pie', 'categoria', 'grupo4', dados);
+  </script>
+</body>
+</html>

@@ -1,26 +1,44 @@
 {
-  "name": "synapsis-itp",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "echarts-dashboard-kit",
+  "version": "1.1.6",
+  "description": "Biblioteca de dashboard interativo com Apache ECharts e TanStack Table, com suporte a filtros dinâmicos",
+  "main": "dist/index.umd.js",         
+  "module": "dist/index.js",           
+  "type": "module",
   "scripts": {
+    "build": "rollup -c",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [
+    "echarts",
+    "dashboard",
+    "tabela",
+    "filtros",
+    "interativo",
+    "charts",
+    "react"
+  ],
+  "author": "Eduardo RS",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/eduardorsjx7/Synapsis-ITP.git"
+    "url": "git+https://github.com/eduardorsjx7/echarts-dashboard-kit.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "bugs": {
-    "url": "https://github.com/eduardorsjx7/Synapsis-ITP/issues"
+    "url": "https://github.com/eduardorsjx7/echarts-dashboard-kit/issues"
   },
-  "homepage": "https://github.com/eduardorsjx7/Synapsis-ITP#readme",
+  "homepage": "https://github.com/eduardorsjx7/echarts-dashboard-kit#readme",
   "dependencies": {
-    "@tanstack/react-table": "^8.21.2",
-    "echarts": "^5.6.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "@tanstack/table-core": "^8.7.8",
+    "echarts": "^5.5.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.1",
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup": "^3.26.3",
+    "rollup-plugin-terser": "^7.0.2"
   }
 }
