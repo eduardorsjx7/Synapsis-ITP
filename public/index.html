@@ -2,15 +2,14 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Dashboard Kit - Múltiplos Gráficos</title>
+  <title>Dashboard de Atendimentos</title>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/echarts-dashboard-kit@1.1.6/dist/index.umd.js"></script>
   <style>
     body {
-      font-family: sans-serif;
+      font-family: Arial, sans-serif;
       margin: 0;
       padding: 2rem;
-      background: #f4f4f4;
+      background-color: #f9f9f9;
     }
 
     h1 {
@@ -18,48 +17,106 @@
       margin-bottom: 2rem;
     }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    .charts-container {
+      display: flex;
+      flex-wrap: wrap;
       gap: 2rem;
-      max-width: 1200px;
-      margin: 0 auto;
+      justify-content: center;
     }
 
-    .grafico {
-      background: white;
-      border-radius: 8px;
-      padding: 1rem;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    .chart {
+      width: 45%;
       height: 400px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      padding: 1rem;
     }
   </style>
 </head>
 <body>
-  <h1>Gráficos com ECharts Dashboard Kit</h1>
-  <div class="grid">
-    <div id="grafico-bar" class="grafico"></div>
-    <div id="grafico-linha" class="grafico"></div>
-    <div id="grafico-area" class="grafico"></div>
-    <div id="grafico-pizza" class="grafico"></div>
+  <h1>Dashboard de Atendimentos</h1>
+  <div class="charts-container">
+    <div id="tempo-resolucao-chart" class="chart"></div>
+    <div id="interacoes-chart" class="chart"></div>
   </div>
 
   <script>
-    const dados = [
-      { categoria: 'A', valor: 10 },
-      { categoria: 'B', valor: 20 },
-      { categoria: 'C', valor: 15 },
-      { categoria: 'A', valor: 5 },
-      { categoria: 'B', valor: 5 },
-      { categoria: 'C', valor: 10 },
-    ];
+    // Carregar os dados do arquivo JSON
+    fetch('./data/dados_atendimento.json')
+      .then(response => response.json())
+      .then(dados => {
+        // Processar os dados para os gráficos
+        const categorias = dados.map(item => item.codigo_atendimento);
+        const tempoResolucao = dados.map(item => item.tempo_resolucao_hrs);
+        const interacoes = dados.map(item => item.interacoes);
 
-    const { criarGrafico } = echartsDashboardKit;
+        // Gráfico 1: Tempo de Resolução por Atendimento (Área)
+        const resolucaoChart = echarts.init(document.getElementById('tempo-resolucao-chart'));
+        const resolucaoOptions = {
+          title: {
+            text: 'Tempo de Resolução por Atendimento',
+            left: 'center'
+          },
+          tooltip: {
+            trigger: 'axis'
+          },
+          xAxis: {
+            type: 'category',
+            data: categorias,
+            name: 'Código Atendimento'
+          },
+          yAxis: {
+            type: 'value',
+            name: 'Tempo (hrs)'
+          },
+          series: [
+            {
+              data: tempoResolucao,
+              type: 'line', // Mantém o tipo de linha
+              areaStyle: {}, // Adiciona estilo de área para transformar em gráfico de área
+              name: 'Tempo de Resolução',
+              itemStyle: {
+                color: '#5470C6'
+              }
+            }
+          ]
+        };
+        resolucaoChart.setOption(resolucaoOptions);
 
-    criarGrafico(document.getElementById('grafico-bar'), 'bar', 'categoria', 'grupo1', dados);
-    criarGrafico(document.getElementById('grafico-linha'), 'line', 'categoria', 'grupo2', dados);
-    criarGrafico(document.getElementById('grafico-area'), 'area', 'categoria', 'grupo3', dados);
-    criarGrafico(document.getElementById('grafico-pizza'), 'pie', 'categoria', 'grupo4', dados);
+        // Gráfico 2: Interações por Atendimento (Dispersão)
+        const interacoesChart = echarts.init(document.getElementById('interacoes-chart'));
+        const interacoesOptions = {
+          title: {
+            text: 'Interações por Atendimento',
+            left: 'center'
+          },
+          tooltip: {
+            trigger: 'item'
+          },
+          xAxis: {
+            type: 'category',
+            data: categorias,
+            name: 'Código Atendimento'
+          },
+          yAxis: {
+            type: 'value',
+            name: 'Interações'
+          },
+          series: [
+            {
+              data: interacoes.map((value, index) => [categorias[index], value]),
+              type: 'scatter', // Alterado para gráfico de dispersão
+              name: 'Interações',
+              itemStyle: {
+                color: '#91CC75'
+              }
+            }
+          ]
+        };
+        interacoesChart.setOption(interacoesOptions);
+      })
+      .catch(error => console.error('Erro ao carregar os dados:', error));
   </script>
 </body>
 </html>
