@@ -2,121 +2,280 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Dashboard de Atendimentos</title>
+  <title>Dashboard de Atendimentos Avançado</title>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/moment@2.29.1/moment.min.js"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       margin: 0;
       padding: 2rem;
-      background-color: #f9f9f9;
+      background-color: #f5f7fa;
     }
-
     h1 {
       text-align: center;
       margin-bottom: 2rem;
+      color: #2c3e50;
     }
-
-    .charts-container {
+    .dashboard-header {
       display: flex;
-      flex-wrap: wrap;
-      gap: 2rem;
-      justify-content: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
     }
-
+    .charts-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2rem;
+    }
     .chart {
-      width: 45%;
-      height: 400px;
+      height: 450px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      padding: 1.5rem;
+      transition: transform 0.3s;
+    }
+    .chart:hover {
+      transform: translateY(-5px);
+    }
+    .filters {
+      margin-bottom: 2rem;
+      padding: 1rem;
       background: #fff;
       border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      padding: 1rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    @media (max-width: 1200px) {
+      .charts-container {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Dashboard de Atendimentos</h1>
+  <div class="dashboard-header">
+    <h1>📊 Dashboard de Atendimentos</h1>
+    <div id="data-range" style="font-weight: bold; color: #3498db;"></div>
+  </div>
+
+  <div class="filters">
+    <label for="priority-filter">Filtrar por Prioridade:</label>
+    <select id="priority-filter">
+      <option value="all">Todas</option>
+      <option value="Alta">Alta</option>
+      <option value="Média">Média</option>
+      <option value="Baixa">Baixa</option>
+    </select>
+  </div>
+
   <div class="charts-container">
-    <div id="tempo-resolucao-chart" class="chart"></div>
-    <div id="interacoes-chart" class="chart"></div>
+    <div id="timeline-chart" class="chart"></div>
+    <div id="performance-chart" class="chart"></div>
+    <div id="priority-distribution" class="chart"></div>
+    <div id="satisfaction-chart" class="chart"></div>
   </div>
 
   <script>
-    // Carregar os dados do arquivo JSON
+    // 1. Carregar dados
     fetch('./data/dados_atendimento.json')
       .then(response => response.json())
       .then(dados => {
-        // Processar os dados para os gráficos
-        const categorias = dados.map(item => item.codigo_atendimento);
-        const tempoResolucao = dados.map(item => item.tempo_resolucao_hrs);
-        const interacoes = dados.map(item => item.interacoes);
+        // Atualizar o range de datas
+        const dates = dados.map(item => item.data_solicitacao.split(' ')[0]);
+        document.getElementById('data-range').textContent = 
+          `Período: ${moment.min(dates.map(d => moment(d))).format('DD/MM/YY')} - ${moment.max(dates.map(d => moment(d))).format('DD/MM/YY')}`;
 
-        // Gráfico 1: Tempo de Resolução por Atendimento (Área)
-        const resolucaoChart = echarts.init(document.getElementById('tempo-resolucao-chart'));
-        const resolucaoOptions = {
-          title: {
-            text: 'Tempo de Resolução por Atendimento',
-            left: 'center'
-          },
-          tooltip: {
-            trigger: 'axis'
-          },
-          xAxis: {
-            type: 'category',
-            data: categorias,
-            name: 'Código Atendimento'
-          },
-          yAxis: {
-            type: 'value',
-            name: 'Tempo (hrs)'
-          },
-          series: [
-            {
-              data: tempoResolucao,
-              type: 'line', // Mantém o tipo de linha
-              areaStyle: {}, // Adiciona estilo de área para transformar em gráfico de área
-              name: 'Tempo de Resolução',
-              itemStyle: {
-                color: '#5470C6'
-              }
-            }
-          ]
-        };
-        resolucaoChart.setOption(resolucaoOptions);
+        // 2. Processamento avançado dos dados
+        const processData = (filterPriority = 'all') => {
+          let filteredData = dados;
+          if (filterPriority !== 'all') {
+            filteredData = dados.filter(item => item.prioridade === filterPriority);
+          }
 
-        // Gráfico 2: Interações por Atendimento (Dispersão)
-        const interacoesChart = echarts.init(document.getElementById('interacoes-chart'));
-        const interacoesOptions = {
-          title: {
-            text: 'Interações por Atendimento',
-            left: 'center'
-          },
-          tooltip: {
-            trigger: 'item'
-          },
-          xAxis: {
-            type: 'category',
-            data: categorias,
-            name: 'Código Atendimento'
-          },
-          yAxis: {
-            type: 'value',
-            name: 'Interações'
-          },
-          series: [
-            {
-              data: interacoes.map((value, index) => [categorias[index], value]),
-              type: 'scatter', // Alterado para gráfico de dispersão
-              name: 'Interações',
-              itemStyle: {
-                color: '#91CC75'
-              }
-            }
-          ]
+          // Agrupar por atendente
+          const atendentes = [...new Set(filteredData.map(item => item.atendente))];
+          const performanceData = atendentes.map(atendente => {
+            const atendimentos = filteredData.filter(item => item.atendente === atendente);
+            return {
+              name: atendente,
+              value: atendimentos.reduce((sum, item) => sum + item.tempo_resolucao_hrs, 0) / atendimentos.length,
+              count: atendimentos.length
+            };
+          });
+
+          return { filteredData, performanceData, atendentes };
         };
-        interacoesChart.setOption(interacoesOptions);
+
+        // 3. Inicializar gráficos
+        const initCharts = () => {
+          const { filteredData, performanceData, atendentes } = processData();
+
+          // Gráfico 1: Linha do Tempo (Solicitação -> Resolução)
+          const timelineChart = echarts.init(document.getElementById('timeline-chart'));
+          timelineChart.setOption({
+            title: { text: 'Jornada do Atendimento', left: 'center' },
+            tooltip: { 
+              trigger: 'axis',
+              formatter: params => {
+                const data = filteredData[params[0].dataIndex];
+                return `
+                  <strong>${data.codigo_atendimento}</strong><br/>
+                  Cliente: ${data.cliente}<br/>
+                  Solicitação: ${moment(data.data_solicitacao).format('DD/MM HH:mm')}<br/>
+                  Resolução: ${moment(data.data_resolucao).format('DD/MM HH:mm')}<br/>
+                  Total: <b>${data.tempo_resolucao_hrs} horas</b>
+                `;
+              }
+            },
+            xAxis: { 
+              type: 'category', 
+              data: filteredData.map(item => item.codigo_atendimento),
+              axisLabel: { rotate: 45 }
+            },
+            yAxis: { type: 'value', name: 'Horas' },
+            series: [
+              {
+                name: 'Tempo até Início',
+                type: 'bar',
+                data: filteredData.map(item => item.tempo_inicio_hrs),
+                itemStyle: { color: '#f39c12' }
+              },
+              {
+                name: 'Tempo de Resolução',
+                type: 'bar',
+                data: filteredData.map(item => item.tempo_resolucao_hrs - item.tempo_inicio_hrs),
+                itemStyle: { color: '#3498db' },
+                stack: 'total'
+              }
+            ],
+            legend: { data: ['Tempo até Início', 'Tempo de Resolução'] }
+          });
+
+          // Gráfico 2: Performance dos Atendentes
+          const performanceChart = echarts.init(document.getElementById('performance-chart'));
+          performanceChart.setOption({
+            title: { text: 'Performance dos Atendentes', left: 'center' },
+            tooltip: {
+              formatter: params => {
+                const data = performanceData[params.dataIndex];
+                return `
+                  <strong>${data.name}</strong><br/>
+                  Média: <b>${data.value.toFixed(1)} horas</b><br/>
+                  Atendimentos: ${data.count}
+                `;
+              }
+            },
+            xAxis: { 
+              type: 'category', 
+              data: atendentes,
+              axisLabel: { interval: 0, rotate: 30 }
+            },
+            yAxis: { type: 'value', name: 'Média (horas)' },
+            series: [{
+              data: performanceData.map(item => ({
+                value: item.value,
+                itemStyle: {
+                  color: item.value < 10 ? '#2ecc71' : 
+                        item.value < 20 ? '#f1c40f' : '#e74c3c'
+                }
+              })),
+              type: 'bar',
+              showBackground: true,
+              label: {
+                show: true,
+                position: 'top',
+                formatter: '{@[1]}h'
+              }
+            }]
+          });
+
+          // Gráfico 3: Distribuição de Prioridades
+          const priorityChart = echarts.init(document.getElementById('priority-distribution'));
+          priorityChart.setOption({
+            title: { text: 'Distribuição de Prioridades', left: 'center' },
+            tooltip: { trigger: 'item' },
+            series: [{
+              name: 'Prioridade',
+              type: 'pie',
+              radius: ['40%', '70%'],
+              data: [
+                { 
+                  value: filteredData.filter(item => item.prioridade === 'Alta').length,
+                  name: 'Alta',
+                  itemStyle: { color: '#e74c3c' }
+                },
+                { 
+                  value: filteredData.filter(item => item.prioridade === 'Média').length,
+                  name: 'Média',
+                  itemStyle: { color: '#f39c12' }
+                },
+                { 
+                  value: filteredData.filter(item => item.prioridade === 'Baixa').length,
+                  name: 'Baixa',
+                  itemStyle: { color: '#2ecc71' }
+                }
+              ],
+              emphasis: {
+                itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' }
+              },
+              label: { formatter: '{b}: {c} ({d}%)' }
+            }]
+          });
+
+          // Gráfico 4: Satisfação do Cliente
+          const satisfactionChart = echarts.init(document.getElementById('satisfaction-chart'));
+          satisfactionChart.setOption({
+            title: { text: 'Satisfação do Cliente', left: 'center' },
+            tooltip: { trigger: 'item' },
+            series: [{
+              name: 'Nota',
+              type: 'pie',
+              roseType: 'radius',
+              radius: '60%',
+              data: [
+                { 
+                  value: filteredData.filter(item => item.nota === 'Excelente').length,
+                  name: 'Excelente',
+                  itemStyle: { color: '#27ae60' }
+                },
+                { 
+                  value: filteredData.filter(item => item.nota === 'Bom').length,
+                  name: 'Bom',
+                  itemStyle: { color: '#3498db' }
+                },
+                { 
+                  value: filteredData.filter(item => item.nota === 'Ruim').length,
+                  name: 'Ruim',
+                  itemStyle: { color: '#e74c3c' }
+                }
+              ],
+              labelLine: { length: 15 },
+              label: { formatter: '{b|{b}}\n{c|{c}}', rich: { b: { fontWeight: 'bold' }, c: { padding: [5, 0] } } }
+            }]
+          });
+        };
+
+        // 4. Inicializar e configurar filtros
+        initCharts();
+        document.getElementById('priority-filter').addEventListener('change', function() {
+          initCharts(this.value);
+        });
+
+        // 5. Responsividade
+        window.addEventListener('resize', function() {
+          [
+            document.getElementById('timeline-chart'),
+            document.getElementById('performance-chart'),
+            document.getElementById('priority-distribution'),
+            document.getElementById('satisfaction-chart')
+          ].forEach(chart => {
+            if (chart && chart.echartsInstance) {
+              chart.echartsInstance.resize();
+            }
+          });
+        });
       })
-      .catch(error => console.error('Erro ao carregar os dados:', error));
+      .catch(error => console.error('Erro ao carregar dados:', error));
   </script>
 </body>
 </html>
