@@ -5,19 +5,20 @@
   <title>Dashboard de Atendimento</title>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/moment@2/min/moment.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/echarts-dashboard-kit@1.2.2/dist/index.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts-dashboard-kit@1.2.4/dist/index.umd.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
       background-color: #f5f7fa;
     }
-    
+
     h1 {
       text-align: center;
       margin-bottom: 2rem;
       color: #2c3e50;
     }
+
     .dashboard-header {
       display: flex;
       justify-content: space-between;
@@ -45,109 +46,161 @@
       padding: 2vh 0;
     }
 
-        .filters {
+    .filters {
       margin-bottom: 2rem;
       padding: 1rem;
       background: #fff;
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
-
   </style>
 </head>
 <body>
 
   <h1>Dashboard de Teste</h1>
-  <div id="data-range"></div>
 
-  <label for="priority-filter">Filtrar por Prioridade:</label>
-  <select id="priority-filter">
-    <option value="all">Todas</option>
-    <option value="Alta">Alta</option>
-    <option value="Média">Média</option>
-    <option value="Baixa">Baixa</option>
-  </select>
+  <div class="filters">
+    <div id="data-range"></div>
+    <label for="priority-filter">Filtrar por Prioridade:</label>
+    <select id="priority-filter">
+      <option value="all">Todas</option>
+      <option value="Alta">Alta</option>
+      <option value="Média">Média</option>
+      <option value="Baixa">Baixa</option>
+    </select>
+  </div>
 
-  <div id="timeline-chart" class="chart-container"></div>
-  <div id="performance-chart" class="chart-container"></div>
-  <div id="priority-distribution" class="chart-container"></div>
-  <div id="satisfaction-chart" class="chart-container"></div>
+  <div id="timeline-chart" class="chart-container grafico"></div>
+  <div id="performance-chart" class="chart-container grafico"></div>
+  <div id="priority-distribution" class="chart-container grafico"></div>
+  <div id="satisfaction-chart" class="chart-container grafico"></div>
 
-  <!-- Configuração esperada pela biblioteca -->
-  <script>
-    window.dashboardConfig = {
-      jsonPath: './data/dados_atendimento.json',
-      periodoLabel: 'Período:',
-      prioridades: ['Alta', 'Média', 'Baixa'],
-      notas: ['Excelente', 'Bom', 'Ruim'],
-      chartTitles: {
-        performance: 'Performance dos Atendentes',
-        priority: 'Distribuição de Prioridade',
-        satisfaction: 'Satisfação dos Clientes'
+<script>
+  window.dashboardConfig = {
+    jsonPath: './data/dados_atendimento.json',
+    periodoLabel: 'Período:',
+    prioridades: ['Alta', 'Média', 'Baixa'],
+    notas: ['Excelente', 'Bom', 'Ruim'],
+    chartTitles: {
+      performance: 'Performance dos Atendentes',
+      priority: 'Distribuição de Prioridade',
+      satisfaction: 'Satisfação dos Clientes'
+    },
+    coresPrioridade: {
+      Alta: '#e74c3c',
+      Média: '#f39c12',
+      Baixa: '#2ecc71'
+    },
+    coresNota: {
+      Excelente: '#27ae60',
+      Bom: '#3498db',
+      Ruim: '#e74c3c'
+    },
+    desempenhoCores: {
+      bom: '#2ecc71',
+      medio: '#f1c40f',
+      ruim: '#e74c3c'
+    },
+
+    performance: {
+      axisLabelRotate: 30,
+      yAxisName: 'Tempo Médio (h)',
+      tooltipFormatter: data => `
+        <b>${data.name}</b><br>
+        Tempo médio: ${data.value.toFixed(2)}h<br>
+        Atendimentos: ${data.count}
+      `,
+      labelConfig: {
+        show: true,
+        position: 'top',
+        formatter: '{c}h'
       },
-      coresPrioridade: {
+      colorScale: tempo => {
+        if (tempo <= 2) return '#2ecc71';     // bom
+        if (tempo <= 4) return '#f1c40f';     // médio
+        return '#e74c3c';                     // ruim
+      }
+    },
+
+    priority: {
+      radius: ['40%', '70%'],
+      labels: ['Alta', 'Média', 'Baixa'],
+      colors: {
         Alta: '#e74c3c',
         Média: '#f39c12',
         Baixa: '#2ecc71'
       },
-      coresNota: {
-        Excelente: '#27ae60',
-        Bom: '#3498db',
-        Ruim: '#e74c3c'
+      labelFormat: {
+        formatter: '{b}: {d}%'
       },
-      desempenhoCores: {
-        bom: '#2ecc71',
-        medio: '#f1c40f',
-        ruim: '#e74c3c'
-      },
-      pieRadius: ['40%', '70%'],
-      satisfactionRadius: '60%',
       shadow: {
         blur: 10,
         offsetX: 0,
         color: 'rgba(0,0,0,0.5)'
-      },
-      performanceAxisRotate: 30,
-      timeline: {
-        title: 'Jornada do Atendimento',
-        axisLabelRotate: 45,
-        yAxisName: 'Tempo (h)',
-        seriesNames: {
-          inicio: 'Início',
-          resolucao: 'Resolução'
-        },
-        colors: {
-          inicio: '#3498db',
-          resolucao: '#2ecc71'
-        },
-        legendPosition: 'right',
-        tooltipFormatter: d => `
-          <b>${d.codigo_atendimento}</b><br>
-          Cliente: ${d.cliente}<br>
-          Solicitação: ${d.solicitacao}<br>
-          Resolução: ${d.resolucao}<br>
-          Total: ${d.tempo_resolucao_hrs}h
-        `,
-        onClickFormatter: d => `
-          Código: ${d.codigo_atendimento}\n
-          Cliente: ${d.cliente}\n
-          Solicitação: ${d.solicitacao}\n
-          Resolução: ${d.resolucao}\n
-          Tempo Total: ${d.tempo_resolucao_hrs} horas
-        `
       }
-    };
+    },
 
-    // Passa os elementos esperados
-    window.elements = {
+    satisfaction: {
+      radius: '60%',
+      notas: ['Excelente', 'Bom', 'Ruim'],
+      colors: {
+        Excelente: '#27ae60',
+        Bom: '#3498db',
+        Ruim: '#e74c3c'
+      },
+      labelFormat: {
+        formatter: '{b}: {c}'
+      },
+      labelLine: {
+        smooth: 0.2,
+        length: 10,
+        length2: 10
+      }
+    },
+
+    timeline: {
+      title: 'Jornada do Atendimento',
+      axisLabelRotate: 45,
+      yAxisName: 'Tempo (h)',
+      seriesNames: {
+        inicio: 'Início',
+        resolucao: 'Resolução'
+      },
+      colors: {
+        inicio: '#3498db',
+        resolucao: '#2ecc71'
+      },
+      legendPosition: 'right',
+      tooltipFormatter: d => `
+        <b>${d.codigo_atendimento}</b><br>
+        Cliente: ${d.cliente}<br>
+        Solicitação: ${d.solicitacao}<br>
+        Resolução: ${d.resolucao}<br>
+        Total: ${d.tempo_resolucao_hrs}h
+      `,
+      onClickFormatter: d => `
+        Código: ${d.codigo_atendimento}\n
+        Cliente: ${d.cliente}\n
+        Solicitação: ${d.solicitacao}\n
+        Resolução: ${d.resolucao}\n
+        Tempo Total: ${d.tempo_resolucao_hrs} horas
+      `
+    },
+
+    elements: {
       timeline: 'timeline-chart',
       performance: 'performance-chart',
       priority: 'priority-distribution',
       satisfaction: 'satisfaction-chart',
       rangeDisplay: 'data-range',
-      filterSelect: 'priority-filter'
-    };
-  </script>
+      dateRange: 'data-range',
+      filterSelect: 'priority-filter',
+      priorityFilter: 'priority-filter'
+    }
+  };
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts-dashboard-kit@1.2.4/dist/index.umd.js"></script>
 
 </body>
 </html>

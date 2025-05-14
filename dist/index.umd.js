@@ -5,7 +5,7 @@ window.addEventListener('DOMContentLoaded', () => {
     .then(response => response.json())
     .then(dados => {
       const dates = dados.map(item => item.data_solicitacao.split(' ')[0]);
-      document.getElementById('data-range').textContent =
+      document.getElementById(config.elements.dateRange).textContent =
         `${config.periodoLabel} ${moment.min(dates.map(d => moment(d))).format('DD/MM/YY')} - ${moment.max(dates.map(d => moment(d))).format('DD/MM/YY')}`;
 
       const processData = (filterPriority = 'all') => {
@@ -30,16 +30,13 @@ window.addEventListener('DOMContentLoaded', () => {
       const initCharts = (priority = 'all') => {
         const { filteredData, performanceData, atendentes } = processData(priority);
 
-        // Chart 1: Timeline
-        const timelineChart = echarts.init(document.getElementById(elements.timeline));
+        // Timeline Chart
+        const timelineChart = echarts.init(document.getElementById(config.elements.timeline));
         timelineChart.setOption({
           title: { text: config.timeline.title, left: 'center' },
           tooltip: {
             trigger: 'axis',
-            formatter: params => {
-              const data = filteredData[params[0].dataIndex];
-              return config.timeline.tooltipFormatter(data);
-            }
+            formatter: params => config.timeline.tooltipFormatter(filteredData[params[0].dataIndex])
           },
           xAxis: {
             type: 'category',
@@ -71,84 +68,60 @@ window.addEventListener('DOMContentLoaded', () => {
           }
         });
 
-
-
-        timelineChart.on('click', function (params) {
+        timelineChart.on('click', params => {
           const data = filteredData[params.dataIndex];
-          if (data) {
-            alert(config.timeline.onClickFormatter(data));
-          }
+          if (data) alert(config.timeline.onClickFormatter(data));
         });
-
         window.addEventListener('resize', () => timelineChart.resize());
 
-        // Chart 2: Performance
-        const performanceChart = echarts.init(document.getElementById('performance-chart'));
+        // Performance Chart
+        const performanceChart = echarts.init(document.getElementById(config.elements.performance));
         performanceChart.setOption({
           title: { text: config.chartTitles.performance, left: 'center' },
           tooltip: {
             formatter: params => {
               const data = performanceData[params.dataIndex];
-              return `
-                <strong>${data.name}</strong><br/>
-                Média: <b>${data.value.toFixed(1)} horas</b><br/>
-                Atendimentos: ${data.count}
-              `;
+              return config.performance.tooltipFormatter(data);
             }
           },
           xAxis: {
             type: 'category',
             data: atendentes,
-            axisLabel: { interval: 0, rotate: config.performanceAxisRotate }
+            axisLabel: { interval: 0, rotate: config.performance.axisLabelRotate }
           },
-          yAxis: { type: 'value', name: 'Média (horas)' },
+          yAxis: { type: 'value', name: config.performance.yAxisName },
           series: [{
             data: performanceData.map(item => ({
               value: item.value,
-              itemStyle: {
-                color:
-                  item.value < 10 ? config.desempenhoCores.bom :
-                  item.value < 20 ? config.desempenhoCores.medio :
-                                    config.desempenhoCores.ruim
-              }
+              itemStyle: { color: config.performance.colorScale(item.value) }
             })),
             type: 'bar',
             showBackground: true,
-            label: {
-              show: true,
-              position: 'top',
-              formatter: '{@[1]}h'
-            }
+            label: config.performance.labelConfig
           }]
         });
 
-        // Chart 3: Prioridade
-        const priorityChart = echarts.init(document.getElementById('priority-distribution'));
+        // Priority Pie
+        const priorityChart = echarts.init(document.getElementById(config.elements.priority));
         priorityChart.setOption({
           title: { text: config.chartTitles.priority, left: 'center' },
           tooltip: { trigger: 'item' },
           series: [{
             name: 'Prioridade',
             type: 'pie',
-            radius: config.pieRadius,
-            data: config.prioridades.map(p => ({
+            radius: config.priority.radius,
+            data: config.priority.labels.map(p => ({
               value: filteredData.filter(item => item.prioridade === p).length,
               name: p,
-              itemStyle: { color: config.coresPrioridade[p] }
+              itemStyle: { color: config.priority.colors[p] }
             })),
-            emphasis: {
-              itemStyle: {
-                shadowBlur: config.shadow.blur,
-                shadowOffsetX: config.shadow.offsetX,
-                shadowColor: config.shadow.color
-              }
-            },
-            label: { formatter: '{b}: {c} ({d}%)' }
+            emphasis: { itemStyle: config.priority.shadow },
+            label: config.priority.labelFormat
           }]
         });
 
-        // Chart 4: Satisfação
-        const satisfactionChart = echarts.init(document.getElementById('satisfaction-chart'));
+        // Satisfaction Pie
+        const satisfactionChart = echarts.init(document.getElementById(config.elements.satisfaction));
         satisfactionChart.setOption({
           title: { text: config.chartTitles.satisfaction, left: 'center' },
           tooltip: { trigger: 'item' },
@@ -156,24 +129,21 @@ window.addEventListener('DOMContentLoaded', () => {
             name: 'Nota',
             type: 'pie',
             roseType: 'radius',
-            radius: config.satisfactionRadius,
-            data: config.notas.map(nota => ({
+            radius: config.satisfaction.radius,
+            data: config.satisfaction.notas.map(nota => ({
               value: filteredData.filter(item => item.nota === nota).length,
               name: nota,
-              itemStyle: { color: config.coresNota[nota] }
+              itemStyle: { color: config.satisfaction.colors[nota] }
             })),
-            labelLine: { length: 15 },
-            label: {
-              formatter: '{b|{b}}\n{c|{c}}',
-              rich: { b: { fontWeight: 'bold' }, c: { padding: [5, 0] } }
-            }
+            labelLine: config.satisfaction.labelLine,
+            label: config.satisfaction.labelFormat
           }]
         });
       };
 
       initCharts();
 
-      document.getElementById('priority-filter').addEventListener('change', function () {
+      document.getElementById(config.elements.priorityFilter).addEventListener('change', function () {
         initCharts(this.value);
       });
     })
