@@ -1,167 +1,181 @@
-const listeners = {}; // Definido no escopo externo
+window.addEventListener('DOMContentLoaded', () => {
+  const config = window.dashboardConfig;
 
-(function (global, factory) {
-  if (typeof module === "object" && typeof module.exports === "object") {
-    module.exports = factory(require("echarts")); // Node/CommonJS
-  } else {
-    global.echartsDashboardKit = factory(global.echarts); // Navegador
-  }
-})(typeof window !== "undefined" ? window : this, function (echarts) {
-  if (!echarts) {
-    throw new Error("ECharts não foi carregado. Instale com npm ou inclua via CDN antes de usar a biblioteca.");
-  }
+  fetch(config.jsonPath)
+    .then(response => response.json())
+    .then(dados => {
+      const dates = dados.map(item => item.data_solicitacao.split(' ')[0]);
+      document.getElementById('data-range').textContent =
+        `${config.periodoLabel} ${moment.min(dates.map(d => moment(d))).format('DD/MM/YY')} - ${moment.max(dates.map(d => moment(d))).format('DD/MM/YY')}`;
 
-  const filtros = {}; // Correto: usado dentro e retornado
+      const processData = (filterPriority = 'all') => {
+        let filteredData = dados;
+        if (filterPriority !== 'all') {
+          filteredData = dados.filter(item => item.prioridade === filterPriority);
+        }
 
-
- 
-  // Func de registrar componete para mostar como uma legenda 
-
-  function registrarComponente(grupo, campo, valor, callback) {
-    filtros[grupo] = filtros[grupo] || {};
-    listeners[grupo] = listeners[grupo] || [];
-
-    if (callback) {
-      listeners[grupo].push(callback);
-    } else {
-      if (!valor) return;
-
-      filtros[grupo][campo] = filtros[grupo][campo] || new Set();
-
-      if (filtros[grupo][campo].has(valor)) {
-        filtros[grupo][campo].delete(valor);
-      } else {
-        filtros[grupo][campo].add(valor);
-      }
-
-      listeners[grupo].forEach(fn => fn());
-    }
-  }
-
-
-  // Retorna um arry ao inddentifiica o mocelo do dado 
-
-  function obterDadosFiltrados(grupo, dados) {
-    const ativo = filtros[grupo] || {};
-
-    return Array.isArray(dados)
-      ? dados.filter(item => {
-          return Object.entries(ativo).every(([campo, valores]) => {
-            if (!valores || valores.size === 0) return true;
-            return valores.has(item[campo]);
-          });
-        })
-      : [];
-  }
-
-
-
-
-
-  function limparFiltros(grupo) {
-    filtros[grupo] = {};
-    if (listeners[grupo]) listeners[grupo].forEach(fn => fn());
-  }
-
-
-
-// Cria grafico e atuliza os graficos ao atualizar os dados 
-
-
-  function criarGrafico(el, tipo, parametro, grupo, dados) {
-    const chart = echarts.init(el);
-  
-    const atualizar = () => {
-      const filtrados = obterDadosFiltrados(grupo, dados);
-      const contagem = {};
-  
-      filtrados.forEach(item => {
-        const chave = item[parametro];
-        const valor = item.valor || 1;
-        contagem[chave] = (contagem[chave] || 0) + valor;
-      });
-  
-      const chartTipo = tipo === 'area' ? 'line' : tipo;
-  
-      const option = {
-        title: { text: parametro },
-        tooltip: { trigger: 'axis' },
-        xAxis: { type: 'category', data: Object.keys(contagem) },
-        yAxis: { type: 'value' },
-        series: [{
-          type: chartTipo,
-          data: Object.values(contagem),
-          ...(tipo === 'area' ? { areaStyle: {} } : {})  // Ativa área se for tipo 'area'
-        }]
-      };
-  
-      chart.setOption(option);
-    };
-  
-    chart.on('click', (params) => {
-      const valor = params.name;
-      registrarComponente(grupo, parametro, valor);
-    });
-  
-    registrarComponente(grupo, parametro, null, atualizar);
-    atualizar();
-  }
-
-//---------------------------------------------------------------------------------------------------------------------------------------------------------//
-
-
-//Cria a func de criar tabela 
-
-
-
-  function criarTabela(el, colunas, grupo, dados) {
-    const atualizar = () => {
-      const filtrados = obterDadosFiltrados(grupo, dados);
-      el.innerHTML = '';
-
-      const table = document.createElement('table');
-      const thead = document.createElement('thead');
-      const tr = document.createElement('tr');
-
-      colunas.forEach(c => {
-        const th = document.createElement('th');
-        th.textContent = c;
-        tr.appendChild(th);
-      });
-      thead.appendChild(tr);
-      table.appendChild(thead);
-
-      const tbody = document.createElement('tbody');
-      filtrados.forEach(item => {
-        const tr = document.createElement('tr');
-        colunas.forEach(c => {
-          const td = document.createElement('td');
-          td.textContent = item[c];
-          tr.appendChild(td);
+        const atendentes = [...new Set(filteredData.map(item => item.atendente))];
+        const performanceData = atendentes.map(atendente => {
+          const atendimentos = filteredData.filter(item => item.atendente === atendente);
+          return {
+            name: atendente,
+            value: atendimentos.reduce((sum, item) => sum + item.tempo_resolucao_hrs, 0) / atendimentos.length,
+            count: atendimentos.length
+          };
         });
-        tr.onclick = () => {
-          colunas.forEach(c => registrarComponente(grupo, c, item[c]));
-        };
-        tbody.appendChild(tr);
+
+        return { filteredData, performanceData, atendentes };
+      };
+
+      const initCharts = (priority = 'all') => {
+        const { filteredData, performanceData, atendentes } = processData(priority);
+
+        // Chart 1: Timeline
+        const timelineChart = echarts.init(document.getElementById(elements.timeline));
+        timelineChart.setOption({
+          title: { text: config.timeline.title, left: 'center' },
+          tooltip: {
+            trigger: 'axis',
+            formatter: params => {
+              const data = filteredData[params[0].dataIndex];
+              return config.timeline.tooltipFormatter(data);
+            }
+          },
+          xAxis: {
+            type: 'category',
+            data: filteredData.map(item => item.codigo_atendimento),
+            axisLabel: { rotate: config.timeline.axisLabelRotate }
+          },
+          yAxis: {
+            type: 'value',
+            name: config.timeline.yAxisName
+          },
+          series: [
+            {
+              name: config.timeline.seriesNames.inicio,
+              type: 'bar',
+              data: filteredData.map(item => item.tempo_inicio_hrs),
+              itemStyle: { color: config.timeline.colors.inicio }
+            },
+            {
+              name: config.timeline.seriesNames.resolucao,
+              type: 'bar',
+              data: filteredData.map(item => item.tempo_resolucao_hrs - item.tempo_inicio_hrs),
+              itemStyle: { color: config.timeline.colors.resolucao },
+              stack: 'total'
+            }
+          ],
+          legend: {
+            data: [config.timeline.seriesNames.inicio, config.timeline.seriesNames.resolucao],
+            left: config.timeline.legendPosition
+          }
+        });
+
+
+
+        timelineChart.on('click', function (params) {
+          const data = filteredData[params.dataIndex];
+          if (data) {
+            alert(config.timeline.onClickFormatter(data));
+          }
+        });
+
+        window.addEventListener('resize', () => timelineChart.resize());
+
+        // Chart 2: Performance
+        const performanceChart = echarts.init(document.getElementById('performance-chart'));
+        performanceChart.setOption({
+          title: { text: config.chartTitles.performance, left: 'center' },
+          tooltip: {
+            formatter: params => {
+              const data = performanceData[params.dataIndex];
+              return `
+                <strong>${data.name}</strong><br/>
+                Média: <b>${data.value.toFixed(1)} horas</b><br/>
+                Atendimentos: ${data.count}
+              `;
+            }
+          },
+          xAxis: {
+            type: 'category',
+            data: atendentes,
+            axisLabel: { interval: 0, rotate: config.performanceAxisRotate }
+          },
+          yAxis: { type: 'value', name: 'Média (horas)' },
+          series: [{
+            data: performanceData.map(item => ({
+              value: item.value,
+              itemStyle: {
+                color:
+                  item.value < 10 ? config.desempenhoCores.bom :
+                  item.value < 20 ? config.desempenhoCores.medio :
+                                    config.desempenhoCores.ruim
+              }
+            })),
+            type: 'bar',
+            showBackground: true,
+            label: {
+              show: true,
+              position: 'top',
+              formatter: '{@[1]}h'
+            }
+          }]
+        });
+
+        // Chart 3: Prioridade
+        const priorityChart = echarts.init(document.getElementById('priority-distribution'));
+        priorityChart.setOption({
+          title: { text: config.chartTitles.priority, left: 'center' },
+          tooltip: { trigger: 'item' },
+          series: [{
+            name: 'Prioridade',
+            type: 'pie',
+            radius: config.pieRadius,
+            data: config.prioridades.map(p => ({
+              value: filteredData.filter(item => item.prioridade === p).length,
+              name: p,
+              itemStyle: { color: config.coresPrioridade[p] }
+            })),
+            emphasis: {
+              itemStyle: {
+                shadowBlur: config.shadow.blur,
+                shadowOffsetX: config.shadow.offsetX,
+                shadowColor: config.shadow.color
+              }
+            },
+            label: { formatter: '{b}: {c} ({d}%)' }
+          }]
+        });
+
+        // Chart 4: Satisfação
+        const satisfactionChart = echarts.init(document.getElementById('satisfaction-chart'));
+        satisfactionChart.setOption({
+          title: { text: config.chartTitles.satisfaction, left: 'center' },
+          tooltip: { trigger: 'item' },
+          series: [{
+            name: 'Nota',
+            type: 'pie',
+            roseType: 'radius',
+            radius: config.satisfactionRadius,
+            data: config.notas.map(nota => ({
+              value: filteredData.filter(item => item.nota === nota).length,
+              name: nota,
+              itemStyle: { color: config.coresNota[nota] }
+            })),
+            labelLine: { length: 15 },
+            label: {
+              formatter: '{b|{b}}\n{c|{c}}',
+              rich: { b: { fontWeight: 'bold' }, c: { padding: [5, 0] } }
+            }
+          }]
+        });
+      };
+
+      initCharts();
+
+      document.getElementById('priority-filter').addEventListener('change', function () {
+        initCharts(this.value);
       });
-
-      table.appendChild(tbody);
-      el.appendChild(table);
-    };
-
-    colunas.forEach(c => registrarComponente(grupo, c, null, atualizar));
-    atualizar();
-  }
-
-
-
-  // Retorna as funções para uso global ou por importação
-  return {
-    criarGrafico,
-    criarTabela,
-    registrarComponente,
-    obterDadosFiltrados,
-    limparFiltros,
-    filtros
-  };
+    })
+    .catch(error => console.error('Erro ao carregar dados:', error));
 });
