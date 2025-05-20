@@ -1,5 +1,6 @@
 window.addEventListener('DOMContentLoaded', () => {
   const config = window.dashboardConfig;
+  const currentFilters = {};
 
   fetch(config.jsonPath)
     .then(response => response.json())
@@ -8,10 +9,13 @@ window.addEventListener('DOMContentLoaded', () => {
       document.getElementById(config.elements.dateRange).textContent =
         `${config.periodoLabel} ${moment.min(dates.map(d => moment(d))).format('DD/MM/YY')} - ${moment.max(dates.map(d => moment(d))).format('DD/MM/YY')}`;
 
-      const processData = (filterPriority = 'all') => {
+      const processData = () => {
         let filteredData = dados;
-        if (filterPriority !== 'all') {
-          filteredData = dados.filter(item => item.prioridade === filterPriority);
+
+        for (const [campo, valor] of Object.entries(currentFilters)) {
+          if (valor !== 'all' && valor !== null) {
+            filteredData = filteredData.filter(item => item[campo] === valor);
+          }
         }
 
         const atendentes = [...new Set(filteredData.map(item => item.atendente))];
@@ -27,8 +31,23 @@ window.addEventListener('DOMContentLoaded', () => {
         return { filteredData, performanceData, atendentes };
       };
 
-      const initCharts = (priority = 'all') => {
-        const { filteredData, performanceData, atendentes } = processData(priority);
+      const applyFilter = (campo, valor) => {
+        if (currentFilters[campo] === valor) {
+          delete currentFilters[campo];
+        } else {
+          currentFilters[campo] = valor;
+        }
+        initCharts();
+      };
+
+      const resetAllFilters = () => {
+        Object.keys(currentFilters).forEach(k => delete currentFilters[k]);
+        document.getElementById(config.elements.priorityFilter).value = 'all';
+        initCharts();
+      };
+
+      const initCharts = () => {
+        const { filteredData, performanceData, atendentes } = processData();
 
         // Timeline Chart
         const timelineChart = echarts.init(document.getElementById(config.elements.timeline));
@@ -72,6 +91,8 @@ window.addEventListener('DOMContentLoaded', () => {
           const data = filteredData[params.dataIndex];
           if (data) alert(config.timeline.onClickFormatter(data));
         });
+
+        timelineChart.getZr().on('dblclick', resetAllFilters);
         window.addEventListener('resize', () => timelineChart.resize());
 
         // Performance Chart
@@ -101,6 +122,11 @@ window.addEventListener('DOMContentLoaded', () => {
           }]
         });
 
+        performanceChart.on('click', params => {
+          applyFilter('atendente', params.name);
+        });
+        performanceChart.getZr().on('dblclick', resetAllFilters);
+
         // Priority Pie
         const priorityChart = echarts.init(document.getElementById(config.elements.priority));
         priorityChart.setOption({
@@ -119,6 +145,11 @@ window.addEventListener('DOMContentLoaded', () => {
             label: config.priority.labelFormat
           }]
         });
+
+        priorityChart.on('click', params => {
+          applyFilter('prioridade', params.name);
+        });
+        priorityChart.getZr().on('dblclick', resetAllFilters);
 
         // Satisfaction Pie
         const satisfactionChart = echarts.init(document.getElementById(config.elements.satisfaction));
@@ -139,12 +170,17 @@ window.addEventListener('DOMContentLoaded', () => {
             label: config.satisfaction.labelFormat
           }]
         });
+
+        satisfactionChart.on('click', params => {
+          applyFilter('nota', params.name);
+        });
+        satisfactionChart.getZr().on('dblclick', resetAllFilters);
       };
 
       initCharts();
 
       document.getElementById(config.elements.priorityFilter).addEventListener('change', function () {
-        initCharts(this.value);
+        applyFilter('prioridade', this.value);
       });
     })
     .catch(error => console.error('Erro ao carregar dados:', error));
