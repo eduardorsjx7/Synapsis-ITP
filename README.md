@@ -118,11 +118,6 @@ window.dashboardConfig = {
 - Quer usar como módulo NPM ou UMD? Modularizamos para você facilmente.  
 - A biblioteca foi criada para ser **leve, extensível e fácil de integrar**.
 
----
-
-## 📄 Licença
-
-[MIT License](LICENSE)
 
 ---
 

@@ -1,266 +1,104 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta name="description" content="Dashboard de Atendimento com análises de desempenho, prioridade e satisfação." />
-  <meta name="author" content="Seu Nome ou Empresa" />
-  <title>Dashboard de Atendimento</title>
-
+  <title>Dashboard de Atendimentos</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5"></script>
   <style>
-    * {
-      box-sizing: border-box;
-    }
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
-      background-color: #fafafa;
-      color: #333;
-    }
-    h1 {
-      margin-top: 0;
-    }
-    .chart-container {
-      width: 100%;
-      height: 400px;
-      margin-bottom: 30px;
-      background: #fff;
-      padding: 10px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    label {
-      font-weight: bold;
-      margin-right: 8px;
-    }
-    select, input[type="date"] {
-      padding: 5px 8px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-      margin-right: 10px;
-    }
-    .input-busca {
-      padding: 4px 8px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-    #filtros-periodo {
-      margin: 15px 0;
-    }
-    .dashboard-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 20px;
-      background-color: #fff;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .dashboard-table th, .dashboard-table td {
-      border: 1px solid #ccc;
-      padding: 8px;
-      text-align: left;
-    }
-    .dashboard-table th {
-      background-color: #f0f0f0;
-    }
-    button {
-      padding: 6px 12px;
-      border: none;
-      background-color: #3498db;
-      color: white;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background-color 0.2s ease;
-    }
-    button:hover {
-      background-color: #2980b9;
-    }
-
-    @media (max-width: 768px) {
-      .chart-container {
-        height: 300px;
-      }
-    }
+    body { font-family: Arial; margin: 0; padding: 20px; background: #f4f4f4; }
+    h2 { margin-top: 40px; }
+    .dashboard-container { margin-bottom: 30px; }
+    .dashboard-table { width: 100%; border-collapse: collapse; background: #fff; }
+    .dashboard-table th, .dashboard-table td { padding: 8px 12px; border: 1px solid #ccc; }
+    select { margin: 5px; padding: 5px; }
+    .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    #estatisticas { background: #fff; padding: 10px; margin-top: 10px; }
   </style>
 </head>
-
 <body>
+  <h1>Dashboard de Atendimentos</h1>
+  <div id="periodo"></div>
+  <div id="filtrosDinamicos"></div>
 
-  <header>
-    <h1>Dashboard de Atendimento</h1>
-    <p id="periodo">Período: --</p>
+  <div id="estatisticas"></div>
+  <div id="tabelaEstatisticas" class="dashboard-container"></div>
+  <div id="tabelaPerformance" class="dashboard-container"></div>
+  <div id="tabelaTodosOsDados" class="dashboard-container"></div>
 
-    <div>
-      <label for="priorityFilter">Filtrar por prioridade:</label>
-      <select id="priorityFilter">
-        <option value="all">Todas</option>
-        <option value="Alta">Alta</option>
-        <option value="Média">Média</option>
-        <option value="Baixa">Baixa</option>
-      </select>
-    </div>
-
-    <div id="filtros-periodo">
-      <label>Data Inicial:
-        <input type="date" id="dataInicial">
-      </label>
-      <label>Data Final:
-        <input type="date" id="dataFinal">
-      </label>
-      <button id="btnConsultar">Consultar</button>
-    </div>
-  </header>
-
-  <main>
-    <section>
-      <div id="timeline" class="chart-container"></div>
-      <div id="performance" class="chart-container"></div>
-      <div id="priority" class="chart-container"></div>
-      <div id="satisfaction" class="chart-container"></div>
-      <div id="estatistica" class="chart-container"></div>
-    </section>
-
-    <section id="estatisticas"></section>
-    <section id="tabelaEstatisticas"></section>
-    <section id="tabelaPerformance"></section>
-  </main>
+  <div class="charts">
+    <div id="chartEstatistica" style="height: 300px;"></div>
+    <div id="chartTimeline" style="height: 300px;"></div>
+    <div id="chartPerformance" style="height: 300px;"></div>
+    <div id="chartPriority" style="height: 300px;"></div>
+    <div id="chartSatisfaction" style="height: 300px;"></div>
+  </div>
 
   <script>
     window.dashboardConfig = {
-      jsonPath: './data/dados_atendimento.json',
+      jsonPath: './data/dados_atendimento.json', // Substitua por caminho real
       campos: {
         grupo: 'atendente',
         valor: 'tempo_resolucao_hrs'
       },
       elements: {
-        timeline: 'timeline',
-        performance: 'performance',
-        priority: 'priority',
-        satisfaction: 'satisfaction',
-        estatistica: 'estatistica',
         periodo: 'periodo',
-        priorityFilter: 'priorityFilter',
-        dataInicial: 'dataInicial',
-        dataFinal: 'dataFinal',
-        btnConsultar: 'btnConsultar',
-        tabelaEstatisticas: 'tabelaEstatisticas',
-        tabelaPerformance: 'tabelaPerformance'
-      },
-      chartTitles: {
-        performance: 'Desempenho por Atendente',
-        priority: 'Distribuição por Prioridade',
-        satisfaction: 'Distribuição por Nota',
-        estatistica: 'Estatísticas Gerais'
+        estatistica: 'chartEstatistica',
+        timeline: 'chartTimeline',
+        performance: 'chartPerformance',
+        priority: 'chartPriority',
+        satisfaction: 'chartSatisfaction',
+        priorityFilter: 'filtroPrioridade'
       },
       timeline: {
-        title: 'Linha do Tempo de Atendimentos',
+        title: 'Tempo de Atendimento por Código',
+        axisLabelRotate: 45,
         yAxisName: 'Horas',
-        axisLabelRotate: 30,
-        seriesNames: {
-          inicio: 'Início',
-          resolucao: 'Resolução'
-        },
-        colors: {
-          inicio: '#4dc9f6',
-          resolucao: '#f67019'
-        },
         legendPosition: 'right',
-        tooltipFormatter: d => `
-          Atendimento: ${d.codigo_atendimento}<br>
-          Cliente: ${d.cliente}<br>
-          Início: ${d.tempo_inicio_hrs} hrs<br>
-          Resolução: ${d.tempo_resolucao_hrs} hrs
-        `,
-        onClickFormatter: d => `Você clicou no atendimento ${d.codigo_atendimento}`
+        colors: { inicio: '#4caf50', resolucao: '#2196f3' },
+        seriesNames: { inicio: 'Início', resolucao: 'Resolução' },
+        tooltipFormatter: d => `Atendimento ${d.codigo_atendimento}: ${d.tempo_resolucao_hrs} hrs`,
+        onClickFormatter: d => `Código: ${d.codigo_atendimento}\nCliente: ${d.cliente}`
       },
       performance: {
-        yAxisName: 'Média de Horas',
-        axisLabelRotate: 15,
-        tooltipFormatter: d => `${d.name}: ${d.value.toFixed(2)} hrs (${d.count} atendimentos)`,
-        colorScale: v => v > 20 ? '#f00' : v > 10 ? '#ffa500' : '#4caf50',
-        labelConfig: {
-          show: true,
-          position: 'top',
-          formatter: p => `${p.value.toFixed(2)}h`
-        }
+        chartTitle: 'Performance por Atendente',
+        axisLabelRotate: 0,
+        yAxisName: 'Média de Resolução (hrs)',
+        colorScale: v => v > 40 ? '#f44336' : v > 20 ? '#ff9800' : '#4caf50',
+        tooltipFormatter: d => `${d.name}: ${d.value.toFixed(2)} hrs`,
+        labelConfig: { show: true, position: 'top', formatter: p => `${p.value.toFixed(1)} hrs` }
+      },
+      chartTitles: {
+        performance: 'Performance por Atendente',
+        priority: 'Distribuição de Prioridade',
+        satisfaction: 'Nível de Satisfação'
       },
       priority: {
-        labels: ['Alta', 'Média', 'Baixa'],
-        radius: ['40%', '70%'],
+        radius: '60%',
+        labels: ['Baixa', 'Média', 'Alta', 'Urgente'],
         colors: {
-          Alta: '#e74c3c',
-          Média: '#f1c40f',
-          Baixa: '#2ecc71'
+          Baixa: '#8bc34a',
+          Média: '#ffeb3b',
+          Alta: '#ff9800',
+          Urgente: '#f44336'
         },
-        shadow: {
-          shadowBlur: 10,
-          shadowOffsetX: 0,
-          shadowColor: 'rgba(0, 0, 0, 0.5)'
-        },
-        labelFormat: {
-          formatter: '{b}: {c} ({d}%)'
-        }
+        shadow: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' },
+        labelFormat: { formatter: '{b}: {d}%' }
       },
       satisfaction: {
-        notas: ['Ótimo', 'Bom', 'Regular', 'Ruim'],
+        radius: [30, 100],
+        notas: ['Ruim', 'Regular', 'Bom', 'Ótimo', 'Excelente'],
         colors: {
-          Ótimo: '#2ecc71',
-          Bom: '#3498db',
-          Regular: '#f1c40f',
-          Ruim: '#e74c3c'
+          Ruim: '#e53935',
+          Regular: '#fb8c00',
+          Bom: '#fdd835',
+          Ótimo: '#43a047',
+          Excelente: '#1e88e5'
         },
-        radius: ['30%', '70%'],
-        labelFormat: {
-          formatter: '{b}: {c} ({d}%)'
-        },
-        labelLine: {
-          smooth: 0.2,
-          length: 10,
-          length2: 20
-        }
-      },
-      estatistica: {
-        colorScale: v => v > 100 ? '#e74c3c' : v > 50 ? '#f1c40f' : '#2ecc71',
-        labelConfig: {
-          show: true,
-          position: 'top',
-          formatter: p => `${p.value}`
-        }
+        labelFormat: { formatter: '{b}: {c}' },
+        labelLine: { smooth: 0.2, length: 10, length2: 20 }
       }
     };
   </script>
-
-  <script src="https://cdn.jsdelivr.net/npm/echarts@5"></script>
-  <script src="https://cdn.jsdelivr.net/npm/synapsis-itp@1.3.7/dist/index.umd.js"></script>
-
-  <script>
-    const {
-      carregarDados,
-      gerarTimeline,
-      gerarPerformance,
-      gerarPriority,
-      gerarSatisfaction,
-      gerarEstatistica,
-      gerarTabelaEstatisticas,
-      gerarTabelaPerformance,
-      aplicarFiltros,
-      iniciarDashboard
-    } = window.synapsisDashboard;
-
-    // Inicializa o dashboard
-    iniciarDashboard();
-
-    // Vincula o botão Consultar para aplicar filtro de período
-    document.getElementById(window.dashboardConfig.elements.btnConsultar)
-      .addEventListener('click', () => {
-        aplicarFiltros('periodo', {
-          inicio: document.getElementById(window.dashboardConfig.elements.dataInicial).value,
-          fim: document.getElementById(window.dashboardConfig.elements.dataFinal).value
-        });
-      });
-  </script>
-
+  <script src="https://cdn.jsdelivr.net/npm/synapsis-itp@1.4.1/dist/index.umd.js"></script>
 </body>
 </html>
