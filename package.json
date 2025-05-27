@@ -1,6 +1,6 @@
 {
-  "name": "echarts-dashboard-kit",
-  "version": "1.3.0",
+  "name": "synapsis-itp",
+  "version": "1.3.7",
   "description": "Biblioteca de dashboard interativo com Apache ECharts e TanStack Table, com suporte a filtros dinâmicos",
   "main": "dist/index.umd.js",         
   "module": "dist/index.js",           
@@ -22,12 +22,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/eduardorsjx7/echarts-dashboard-kit.git"
+    "url": "git+https://github.com/eduardorsjx7/Synapsis-ITP.git"
   },
   "bugs": {
-    "url": "https://github.com/eduardorsjx7/echarts-dashboard-kit/issues"
+    "url": "https://github.com/eduardorsjx7/Synapsis-ITP/issues"
   },
-  "homepage": "https://github.com/eduardorsjx7/echarts-dashboard-kit#readme",
+  "homepage": "https://github.com/eduardorsjx7/Synapsis-ITP",
   "dependencies": {
     "@tanstack/table-core": "^8.7.8",
     "echarts": "^5.5.0",

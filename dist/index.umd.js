@@ -1,7 +1,8 @@
 window.addEventListener('DOMContentLoaded', async () => {
   const config = window.dashboardConfig;
-  const currentFilters = {};
+  const currentFilters = { periodo: {} };
 
+  // --- Calcula estatísticas básicas ---
   function calcularEstatisticas(valores) {
     if (!Array.isArray(valores) || valores.length === 0) return null;
 
@@ -29,15 +30,34 @@ window.addEventListener('DOMContentLoaded', async () => {
       const variancia = nums.reduce((acc, val) => acc + (val - media) ** 2, 0) / nums.length;
       const desvioPadrao = Math.sqrt(variancia);
 
-      Object.assign(resultados, { soma, media, mediana, minimo: nums[0], maximo: nums[nums.length - 1], desvioPadrao });
+      Object.assign(resultados, {
+        soma,
+        media,
+        mediana,
+        minimo: nums[0],
+        maximo: nums[nums.length - 1],
+        desvioPadrao
+      });
     }
 
     return resultados;
   }
 
-  function gerarTabela(containerId, headers, data) {
+  // --- Gera tabela genérica com opção de filtro por busca ---
+  function gerarTabela(containerId, headers, data, comBusca = false) {
     const container = document.getElementById(containerId);
     if (!container) return;
+    container.innerHTML = '';
+
+    let inputBusca = null;
+    if (comBusca) {
+      inputBusca = document.createElement('input');
+      inputBusca.type = 'text';
+      inputBusca.placeholder = config.labels?.tabelaBuscaPlaceholder || 'Pesquisar...';
+      inputBusca.className = 'input-busca';
+      inputBusca.style.marginBottom = '8px';
+      container.appendChild(inputBusca);
+    }
 
     const table = document.createElement('table');
     table.className = 'dashboard-table';
@@ -52,115 +72,109 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
     thead.appendChild(headerRow);
 
-    data.forEach(row => {
-      const tr = document.createElement('tr');
-      headers.forEach(h => {
-        const td = document.createElement('td');
-        td.textContent = row[h] !== undefined ? row[h] : '';
-        tr.appendChild(td);
+    function renderTableBody(filtro = '') {
+      tbody.innerHTML = '';
+      const dadosFiltrados = data.filter(row =>
+        !filtro || headers.some(h => String(row[h] ?? '').toLowerCase().includes(filtro.toLowerCase()))
+      );
+      dadosFiltrados.forEach(row => {
+        const tr = document.createElement('tr');
+        headers.forEach(h => {
+          const td = document.createElement('td');
+          td.textContent = row[h] ?? '';
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
       });
-      tbody.appendChild(tr);
-    });
+    }
+
+    renderTableBody();
+
+    if (inputBusca) {
+      inputBusca.addEventListener('input', e => {
+        renderTableBody(e.target.value);
+      });
+    }
 
     table.appendChild(thead);
     table.appendChild(tbody);
-    container.innerHTML = '';
     container.appendChild(table);
   }
 
+  // --- Gera tabela de estatísticas a partir do objeto stats ---
   function gerarTabelaEstatisticas(stats) {
-    const data = [
-      { Indicador: 'Média', Valor: stats.media?.toFixed(2) },
-      { Indicador: 'Mediana', Valor: stats.mediana?.toFixed(2) },
-      { Indicador: 'Moda', Valor: stats.moda.join(', ') },
-      { Indicador: 'Mínimo', Valor: stats.minimo },
-      { Indicador: 'Máximo', Valor: stats.maximo },
-      { Indicador: 'Desvio Padrão', Valor: stats.desvioPadrao?.toFixed(2) }
-    ];
-    gerarTabela('tabelaEstatisticas', ['Indicador', 'Valor'], data);
-  }
-
-  function gerarTabelaPerformance(performance) {
-    gerarTabela('tabelaPerformance', ['name', 'value', 'count'], performance);
-  }
-
-  function gerarChartEstatisticas(estatisticas) {
-    const chart = echarts.init(document.getElementById(config.elements.estatistica));
-    const categorias = ['Média', 'Mediana', 'Moda', 'Mínimo', 'Máximo', 'Desvio Padrão'];
-    const valores = [
-      estatisticas.media,
-      estatisticas.mediana,
-      parseFloat(estatisticas.moda[0] || 0),
-      estatisticas.minimo,
-      estatisticas.maximo,
-      estatisticas.desvioPadrao
-    ];
-
-    chart.setOption({
-      title: { text: 'Indicadores Estatísticos', left: 'center' },
-      tooltip: {
-        trigger: 'axis',
-        formatter: params => `<strong>${params[0].name}</strong>: ${params[0].value.toFixed(2)} hrs`
-      },
-      xAxis: { type: 'category', data: categorias },
-      yAxis: { type: 'value', name: 'Valor' },
-      series: [{
-        type: 'bar',
-        data: valores,
-        itemStyle: { color: '#4dc9f6' },
-        label: { show: true, position: 'top', formatter: p => `${p.value.toFixed(2)}` }
-      }]
-    });
-    window.addEventListener('resize', () => chart.resize());
-  }
-
-  function exibirEstatisticas(dados) {
-    const campoValor = config.campos?.valor;
-    if (!campoValor) return;
-    const valores = dados.map(d => parseFloat(d[campoValor] || 0)).filter(v => !isNaN(v));
-    const stats = calcularEstatisticas(valores);
     if (!stats) return;
-
-    gerarChartEstatisticas(stats);
-    gerarTabelaEstatisticas(stats);
-
-    const el = document.getElementById('estatisticas');
-    if (el) {
-      el.innerHTML = `
-        <strong>Estatísticas:</strong><br>
-        Média: ${stats.media?.toFixed(2)}<br>
-        Mediana: ${stats.mediana?.toFixed(2)}<br>
-        Moda: ${stats.moda.join(', ')}<br>
-        Mínimo: ${stats.minimo}<br>
-        Máximo: ${stats.maximo}<br>
-        Desvio Padrão: ${stats.desvioPadrao?.toFixed(2)}<br>
-      `;
-    }
+    const labels = config.labels?.estatisticas || ['Média', 'Mediana', 'Moda', 'Mínimo', 'Máximo', 'Desvio Padrão'];
+    const data = [
+      { Indicador: labels[0], Valor: stats.media?.toFixed(2) ?? 'N/A' },
+      { Indicador: labels[1], Valor: stats.mediana?.toFixed(2) ?? 'N/A' },
+      { Indicador: labels[2], Valor: stats.moda.join(', ') || 'N/A' },
+      { Indicador: labels[3], Valor: stats.minimo ?? 'N/A' },
+      { Indicador: labels[4], Valor: stats.maximo ?? 'N/A' },
+      { Indicador: labels[5], Valor: stats.desvioPadrao?.toFixed(2) ?? 'N/A' }
+    ];
+    gerarTabela(config.elements.tabelaEstatisticas, ['Indicador', 'Valor'], data);
   }
 
+  // --- Gera tabela de performance ---
+  function gerarTabelaPerformance(performance) {
+    gerarTabela(config.elements.tabelaPerformance, ['name', 'value', 'count'], performance, true);
+  }
+
+  // --- Aplica filtro genérico ---
   function aplicarFiltro(campo, valor) {
-    currentFilters[campo] = valor;
+    if (valor === 'all' || valor === null || valor === '') {
+      delete currentFilters[campo];
+    } else {
+      currentFilters[campo] = valor;
+    }
     atualizarDashboard();
   }
 
+  // --- Limpa todos os filtros ---
   function limparFiltros() {
-    Object.keys(currentFilters).forEach(k => delete currentFilters[k]);
+    Object.keys(currentFilters).forEach(k => {
+      if (k === 'periodo') {
+        currentFilters[k] = {};
+      } else {
+        delete currentFilters[k];
+      }
+    });
     atualizarDashboard();
   }
 
+  // --- Atualiza o texto do período disponível ---
   function atualizarPeriodo(dados) {
     const periodoEl = document.getElementById(config.elements.periodo);
     if (!periodoEl) return;
-    const datas = dados.map(d => d.data_atendimento).filter(Boolean).sort();
-    const primeira = datas[0];
-    const ultima = datas[datas.length - 1];
-    periodoEl.textContent = `Período: ${primeira} a ${ultima}`;
+    const dataField = config.campos.data;
+    const datas = dados
+      .map(d => d[dataField])
+      .filter(Boolean)
+      .sort();
+    const primeira = datas[0] ?? 'N/A';
+    const ultima = datas[datas.length - 1] ?? 'N/A';
+    periodoEl.textContent = `Período disponível: ${primeira} a ${ultima}`;
   }
 
+  // --- Aplica filtro por período (datas de início e fim) ---
+  function aplicarFiltroPeriodo() {
+    const inicio = document.getElementById(config.elements.dataInicial)?.value;
+    const fim = document.getElementById(config.elements.dataFinal)?.value;
+    if (inicio && fim) {
+      currentFilters.periodo = { inicio, fim };
+    } else {
+      currentFilters.periodo = {};
+    }
+    atualizarDashboard();
+  }
 
-  function processarDadosLeve(dados) {
+  // --- Processa dados com filtros aplicados e calcula performance ---
+  async function processarDadosLeve(dados) {
     return new Promise(resolve => {
-      const { grupo, valor } = config.campos || {};
+      const grupo = config.campos.grupo;
+      const valor = config.campos.valor;
+
       if (!grupo || !valor) {
         resolve({ dadosFiltrados: [], performance: [], grupos: [] });
         return;
@@ -168,12 +182,19 @@ window.addEventListener('DOMContentLoaded', async () => {
 
       requestIdleCallback(() => {
         let dadosFiltrados = [...dados];
+
         for (const [campo, val] of Object.entries(currentFilters)) {
-          if (val !== 'all' && val !== null) {
-            dadosFiltrados = dadosFiltrados.filter(d => d[campo] === val);
+          if (campo === 'periodo' && val.inicio && val.fim) {
+            dadosFiltrados = dadosFiltrados.filter(d => {
+              const dataItem = d[config.campos.data];
+              return dataItem >= val.inicio && dataItem <= val.fim;
+            });
+          } else if (val !== undefined && val !== 'all' && val !== null && campo !== 'periodo') {
+            dadosFiltrados = dadosFiltrados.filter(d => String(d[campo]) === String(val));
           }
         }
 
+        // Cálculo performance por grupo
         const gruposSet = new Set();
         const somaPorGrupo = {};
         const contagemPorGrupo = {};
@@ -200,144 +221,62 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // --- Função para atualizar TODO o dashboard ---
   async function atualizarDashboard() {
+    if (!window.__dadosDashboard) return;
+
     const { dadosFiltrados, performance, grupos } = await processarDadosLeve(window.__dadosDashboard);
 
     exibirEstatisticas(dadosFiltrados);
-    gerarChartTimeline(dadosFiltrados);
-    gerarChartPerformance(performance, grupos);
-    gerarChartPriority(dadosFiltrados);
-    gerarChartSatisfaction(dadosFiltrados);
+    gerarChartTimeline?.(dadosFiltrados);
+    gerarChartPerformance?.(performance, grupos);
+    gerarChartPriority?.(dadosFiltrados);
+    gerarChartSatisfaction?.(dadosFiltrados);
+    gerarTabelaPerformance(performance);
   }
 
+  // --- Exibe estatísticas calculadas ---
+  function exibirEstatisticas(dados) {
+    const campoValor = config.campos.valor;
+    if (!campoValor) return;
 
-  function gerarChartTimeline(dados) {
-    const chart = echarts.init(document.getElementById(config.elements.timeline));
-    chart.setOption({
-      title: { text: config.timeline.title, left: 'center' },
-      tooltip: {
-        trigger: 'axis',
-        formatter: params => config.timeline.tooltipFormatter(dados[params[0].dataIndex])
-      },
-      xAxis: {
-        type: 'category',
-        data: dados.map(i => i.codigo_atendimento),
-        axisLabel: { rotate: config.timeline.axisLabelRotate }
-      },
-      yAxis: { type: 'value', name: config.timeline.yAxisName },
-      series: [
-        {
-          name: config.timeline.seriesNames.inicio,
-          type: 'bar',
-          data: dados.map(i => i.tempo_inicio_hrs),
-          itemStyle: { color: config.timeline.colors.inicio }
-        },
-        {
-          name: config.timeline.seriesNames.resolucao,
-          type: 'bar',
-          data: dados.map(i => i.tempo_resolucao_hrs - i.tempo_inicio_hrs),
-          itemStyle: { color: config.timeline.colors.resolucao },
-          stack: 'total'
-        }
-      ],
-      legend: {
-        data: Object.values(config.timeline.seriesNames),
-        left: config.timeline.legendPosition
-      }
-    });
+    const valores = dados
+      .map(d => parseFloat(d[campoValor] || 0))
+      .filter(v => !isNaN(v));
 
-    chart.on('click', p => alert(config.timeline.onClickFormatter(dados[p.dataIndex])));
-    chart.getZr().on('dblclick', limparFiltros);
-    window.addEventListener('resize', () => chart.resize());
+    const stats = calcularEstatisticas(valores);
+    if (!stats) return;
+
+    gerarChartEstatisticas?.(stats);
+    gerarTabelaEstatisticas(stats);
   }
 
-  function gerarChartPerformance(data, labels) {
-    const chart = echarts.init(document.getElementById(config.elements.performance));
-    chart.setOption({
-      title: { text: config.chartTitles.performance, left: 'center' },
-      tooltip: {
-        formatter: p => config.performance.tooltipFormatter(data[p.dataIndex])
-      },
-      xAxis: {
-        type: 'category',
-        data: labels,
-        axisLabel: { rotate: config.performance.axisLabelRotate }
-      },
-      yAxis: { type: 'value', name: config.performance.yAxisName },
-      series: [{
-        type: 'bar',
-        data: data.map(i => ({
-          value: i.value,
-          itemStyle: { color: config.performance.colorScale(i.value) }
-        })),
-        label: config.performance.labelConfig,
-        showBackground: true
-      }]
-    });
-
-    chart.on('click', p => aplicarFiltro('atendente', p.name));
-    chart.getZr().on('dblclick', limparFiltros);
-  }
-
-  function gerarChartPriority(dados) {
-    const chart = echarts.init(document.getElementById(config.elements.priority));
-    chart.setOption({
-      title: { text: config.chartTitles.priority, left: 'center' },
-      tooltip: { trigger: 'item' },
-      series: [{
-        type: 'pie',
-        radius: config.priority.radius,
-        data: config.priority.labels.map(p => ({
-          value: dados.filter(d => d.prioridade === p).length,
-          name: p,
-          itemStyle: { color: config.priority.colors[p] }
-        })),
-        emphasis: { itemStyle: config.priority.shadow },
-        label: config.priority.labelFormat
-      }]
-    });
-
-    chart.on('click', p => aplicarFiltro('prioridade', p.name));
-    chart.getZr().on('dblclick', limparFiltros);
-  }
-
-  function gerarChartSatisfaction(dados) {
-    const chart = echarts.init(document.getElementById(config.elements.satisfaction));
-    chart.setOption({
-      title: { text: config.chartTitles.satisfaction, left: 'center' },
-      tooltip: { trigger: 'item' },
-      series: [{
-        type: 'pie',
-        roseType: 'radius',
-        radius: config.satisfaction.radius,
-        data: config.satisfaction.notas.map(n => ({
-          value: dados.filter(d => d.nota === n).length,
-          name: n,
-          itemStyle: { color: config.satisfaction.colors[n] }
-        })),
-        label: config.satisfaction.labelFormat,
-        labelLine: config.satisfaction.labelLine
-      }]
-    });
-
-    chart.on('click', p => aplicarFiltro('nota', p.name));
-    chart.getZr().on('dblclick', limparFiltros);
-  }
-
-  // 🚀 Inicialização
+  // --- Inicialização ---
   try {
     const response = await fetch(config.jsonPath);
     const dados = await response.json();
     window.__dadosDashboard = dados;
+
     atualizarPeriodo(dados);
     atualizarDashboard();
 
-    document.getElementById(config.elements.priorityFilter)?.addEventListener('change', function () {
-      aplicarFiltro('prioridade', this.value);
+    // Configura filtros extras dinamicamente
+    (config.filtrosExtras || []).forEach(campo => {
+      const el = document.getElementById(config.elements[`${campo}Filter`]);
+      if (el) {
+        el.addEventListener('change', () => {
+          aplicarFiltro(campo, el.value);
+        });
+      }
     });
+
+    // Filtros de período
+    const inputDataInicial = document.getElementById(config.elements.dataInicial);
+    const inputDataFinal = document.getElementById(config.elements.dataFinal);
+    if (inputDataInicial) inputDataInicial.addEventListener('change', aplicarFiltroPeriodo);
+    if (inputDataFinal) inputDataFinal.addEventListener('change', aplicarFiltroPeriodo);
+
   } catch (error) {
     console.error('Erro ao carregar dados:', error);
   }
 });
-
-
