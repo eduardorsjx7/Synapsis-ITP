@@ -86,6 +86,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   function gerarTabelaTodosOsDados(headers, data) {
     gerarTabela('tabelaTodosOsDados', headers, data);
+    adicionarBotaoExportacao('tabelaTodosOsDados', 'tabelaTodosOsDados');
   }
 
   function gerarChartEstatisticas(estatisticas) {
@@ -142,13 +143,108 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function aplicarFiltro(campo, valor) {
-    currentFilters[campo] = valor;
-    atualizarDashboard();
+  function adicionarBotaoExportacao(containerId, tabelaId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const botao = document.createElement('button');
+    botao.textContent = 'Exportar para CSV';
+    botao.onclick = () => exportarTabelaParaCSV(tabelaId, `${tabelaId}.csv`);
+    container.appendChild(botao);
   }
 
-  function limparFiltros() {
-    Object.keys(currentFilters).forEach(k => delete currentFilters[k]);
+  async function aplicarFiltro(campo, valor, secoes = ['tabela', 'estatisticas', 'performance', 'priority', 'satisfaction', 'timeline']) {
+    currentFilters[campo] = valor;
+    const { dadosFiltrados, performance, grupos } = await processarDadosLeve(window.__dadosDashboard);
+
+    secoes.forEach(secao => atualizarSecao(secao, dadosFiltrados, performance, grupos));
+  }
+  window.aplicarFiltro = aplicarFiltro;
+
+  function exportarTabelaParaCSV(tabelaId, nomeArquivo = 'dados.csv') {
+    const tabela = document.getElementById(tabelaId);
+    if (!tabela) return;
+
+    let csv = [];
+    const linhas = tabela.querySelectorAll('tr');
+    linhas.forEach(linha => {
+      const colunas = linha.querySelectorAll('th, td');
+      const linhaCSV = Array.from(colunas).map(td => `"${td.textContent.replace(/"/g, '""')}"`);
+      csv.push(linhaCSV.join(','));
+    });
+
+    const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nomeArquivo;
+    a.click();
+    URL.revokeObjectURL(url);
+  } 
+
+  function gerarFiltrosAutomaticos(dados) {
+    const filtroContainer = document.getElementById('filtrosDinamicos');
+    if (!filtroContainer) return;
+
+    // Seleciona apenas os <select> definidos no HTML com data-campo
+    const selects = filtroContainer.querySelectorAll('select[data-campo][data-aplica-em]');
+
+    selects.forEach(select => {
+      const campo = select.dataset.campo;
+
+      // Limpa opções anteriores, se houver
+      select.innerHTML = '';
+
+      // Coleta os valores únicos do campo no JSON
+      const valoresUnicos = [...new Set(dados.map(d => d[campo]).filter(Boolean))];
+      if (valoresUnicos.length === 0) return;
+
+      // Adiciona opção "Todos"
+      const optionTodos = document.createElement('option');
+      optionTodos.value = 'all';
+      optionTodos.textContent = `Todos (${campo})`;
+      select.appendChild(optionTodos);
+
+      // Adiciona as opções únicas
+      valoresUnicos.forEach(val => {
+        const option = document.createElement('option');
+        option.value = val;
+        option.textContent = val;
+        select.appendChild(option);
+      });
+    });
+  }
+
+  window.gerarFiltrosAutomaticos = gerarFiltrosAutomaticos;
+
+  async function atualizarDashboard() {
+    const { dadosFiltrados, performance, grupos } = await processarDadosLeve(window.__dadosDashboard);
+    exibirEstatisticas(dadosFiltrados);
+    gerarChartTimeline(dadosFiltrados);
+    gerarChartPerformance(performance, grupos);
+    gerarChartPriority(dadosFiltrados);
+    gerarChartSatisfaction(dadosFiltrados);
+
+    const dadosExemplo = dadosFiltrados[0] || {};
+    const headers = Object.keys(dadosExemplo);
+    const camposFiltraveis = headers.filter(c => typeof dadosExemplo[c] === 'string');
+
+    gerarTabelaTodosOsDados(headers, dadosFiltrados);
+    gerarFiltrosAutomaticos(dadosFiltrados, camposFiltraveis);
+  }
+  window.atualizarDashboard = atualizarDashboard;
+
+  function limparFiltros(campoAlvo = null) {
+    if (campoAlvo) {
+      delete currentFilters[campoAlvo];
+      ultimosFiltrosClicados[campoAlvo] = null;
+    } else {
+      Object.keys(currentFilters).forEach(k => {
+        delete currentFilters[k];
+        ultimosFiltrosClicados[k] = null;
+      });
+    }
+
     atualizarDashboard();
   }
 
@@ -203,58 +299,114 @@ window.addEventListener('DOMContentLoaded', async () => {
       }, { timeout: 300 });
     });
   }
+  function inicializarFiltrosHTML() {
+    const selects = document.querySelectorAll('#filtrosDinamicos select[data-campo][data-aplica-em]');
+    const dados = window.__dadosDashboard;
 
-  async function atualizarDashboard() {
-    const { dadosFiltrados, performance, grupos } = await processarDadosLeve(window.__dadosDashboard);
+    selects.forEach(select => {
+      const campo = select.dataset.campo;
+      const aplicaEm = select.dataset.aplicaEm.split(',').map(s => s.trim());
 
-    exibirEstatisticas(dadosFiltrados);
-    gerarChartTimeline(dadosFiltrados);
-    gerarChartPerformance(performance, grupos);
-    gerarChartPriority(dadosFiltrados);
-    gerarChartSatisfaction(dadosFiltrados);
+      // Limpa opções anteriores
+      select.innerHTML = '';
 
-    // Gera tabela com todos os dados filtrados
-    const headers = Object.keys(dadosFiltrados[0] || {});
-    gerarTabelaTodosOsDados(headers, dadosFiltrados);
-
-    // Gera filtros automáticos para todos os campos não numéricos
-    const camposFiltraveis = headers.filter(c => typeof dadosFiltrados[0][c] === 'string');
-    gerarFiltrosAutomaticos(dadosFiltrados, camposFiltraveis);
-  }
-
-  function gerarFiltrosAutomaticos(dados, campos) {
-    const filtroContainer = document.getElementById('filtrosDinamicos');
-    if (!filtroContainer) return;
-
-    filtroContainer.innerHTML = ''; // limpa filtros anteriores
-
-    campos.forEach(campo => {
-      const valoresUnicos = [...new Set(dados.map(d => d[campo]).filter(Boolean))];
-      if (valoresUnicos.length <= 1) return; // ignora campos sem variação
-
-      const select = document.createElement('select');
-      select.name = campo;
-      select.addEventListener('change', () => aplicarFiltro(campo, select.value));
-
+      // Adiciona a opção "Todos"
       const optionTodos = document.createElement('option');
       optionTodos.value = 'all';
       optionTodos.textContent = `Todos (${campo})`;
       select.appendChild(optionTodos);
 
-      valoresUnicos.forEach(val => {
+      // Lista valores únicos para o campo
+      const valoresUnicos = [...new Set(dados.map(d => d[campo]).filter(Boolean))];
+      valoresUnicos.forEach(valor => {
         const option = document.createElement('option');
-        option.value = val;
-        option.textContent = val;
+        option.value = valor;
+        option.textContent = valor;
         select.appendChild(option);
       });
 
-      filtroContainer.appendChild(select);
+      // Aplica filtro ao selecionar
+      select.addEventListener('change', () => {
+        aplicarFiltro(campo, select.value, aplicaEm);
+      });
     });
   }
+ function atualizarSecao(secao, dadosFiltrados, performance, grupos) {
+  const dadosExemplo = dadosFiltrados[0] || {};
+  const headers = Object.keys(dadosExemplo);
+  const campos = headers.filter(c => typeof dadosExemplo[c] === 'string');
+    switch (secao) {
+      case 'estatisticas':
+        exibirEstatisticas(dadosFiltrados);
+        break;
+      case 'timeline':
+        gerarChartTimeline(dadosFiltrados);
+        break;
+      case 'performance':
+        gerarChartPerformance(performance, grupos);
+        gerarTabelaPerformance(performance);
+        break;
+      case 'priority':
+        gerarChartPriority(dadosFiltrados);
+        break;
+      case 'satisfaction':
+        gerarChartSatisfaction(dadosFiltrados);
+        break;
+      case 'tabela':
+        gerarTabelaTodosOsDados(headers, dadosFiltrados);
+        break;
+      case 'filtros':
+        gerarFiltrosAutomaticos(dadosFiltrados, campos);
+        break;
+      default:
+        atualizarDashboard(); // fallback completo
+    }
+  } 
 
+// Funcs de Garficos 
+  const ultimosFiltrosClicados = {}; 
 
   function gerarChartTimeline(dados) {
     const chart = echarts.init(document.getElementById(config.elements.timeline));
+    const campo = 'codigo_atendimento';
+
+    const xData = dados.map(i => i.codigo_atendimento);
+    const inicioData = dados.map(i => i.tempo_inicio_hrs);
+    const resolucaoData = dados.map(i => i.tempo_resolucao_hrs - i.tempo_inicio_hrs);
+
+    const updateVisual = (valorSelecionado) => {
+      chart.setOption({
+        series: [
+          {
+            data: inicioData.map((v, i) => ({
+              value: v,
+              itemStyle: {
+                color: config.timeline.colors.inicio,
+                opacity: valorSelecionado && xData[i] !== valorSelecionado ? 0.3 : 1,
+                borderColor: xData[i] === valorSelecionado ? '#000' : undefined,
+                borderWidth: xData[i] === valorSelecionado ? 2 : 0,
+                shadowBlur: xData[i] === valorSelecionado ? 8 : 0,
+                shadowColor: xData[i] === valorSelecionado ? 'rgba(0,0,0,0.4)' : 'transparent'
+              }
+            }))
+          },
+          {
+            data: resolucaoData.map((v, i) => ({
+              value: v,
+              itemStyle: {
+                color: config.timeline.colors.resolucao,
+                opacity: valorSelecionado && xData[i] !== valorSelecionado ? 0.3 : 1,
+                borderColor: xData[i] === valorSelecionado ? '#000' : undefined,
+                borderWidth: xData[i] === valorSelecionado ? 2 : 0,
+                shadowBlur: xData[i] === valorSelecionado ? 8 : 0,
+                shadowColor: xData[i] === valorSelecionado ? 'rgba(0,0,0,0.4)' : 'transparent'
+              }
+            }))
+          }
+        ]
+      });
+    };
+
     chart.setOption({
       title: { text: config.timeline.title, left: 'center' },
       tooltip: {
@@ -263,38 +415,67 @@ window.addEventListener('DOMContentLoaded', async () => {
       },
       xAxis: {
         type: 'category',
-        data: dados.map(i => i.codigo_atendimento),
+        data: xData,
         axisLabel: { rotate: config.timeline.axisLabelRotate }
       },
       yAxis: { type: 'value', name: config.timeline.yAxisName },
-      series: [
-        {
-          name: config.timeline.seriesNames.inicio,
-          type: 'bar',
-          data: dados.map(i => i.tempo_inicio_hrs),
-          itemStyle: { color: config.timeline.colors.inicio }
-        },
-        {
-          name: config.timeline.seriesNames.resolucao,
-          type: 'bar',
-          data: dados.map(i => i.tempo_resolucao_hrs - i.tempo_inicio_hrs),
-          itemStyle: { color: config.timeline.colors.resolucao },
-          stack: 'total'
-        }
-      ],
       legend: {
         data: Object.values(config.timeline.seriesNames),
         left: config.timeline.legendPosition
+      },
+      series: []
+    });
+
+    updateVisual(null); // inicial
+
+    chart.on('click', p => {
+      const valor = xData[p.dataIndex];
+      if (ultimosFiltrosClicados[campo] === valor) {
+        ultimosFiltrosClicados[campo] = null;
+        limparFiltros();
+        updateVisual(null);
+      } else {
+        ultimosFiltrosClicados[campo] = valor;
+        alert(config.timeline.onClickFormatter(dados[p.dataIndex]));
+        updateVisual(valor);
       }
     });
 
-    chart.on('click', p => alert(config.timeline.onClickFormatter(dados[p.dataIndex])));
-    chart.getZr().on('dblclick', limparFiltros);
+    chart.getZr().on('dblclick', () => {
+      limparFiltros(campo);
+      ultimosFiltrosClicados[campo] = null;
+      updateVisual(null);
+    });
+
     window.addEventListener('resize', () => chart.resize());
   }
 
+
   function gerarChartPerformance(data, labels) {
     const chart = echarts.init(document.getElementById(config.elements.performance));
+    const campo = 'atendente';
+
+    const updateVisual = (valorSelecionado) => {
+      chart.setOption({
+        series: [{
+          type: 'bar',
+          data: data.map((i, idx) => ({
+            value: i.value,
+            itemStyle: {
+              color: config.performance.colorScale(i.value),
+              opacity: valorSelecionado && labels[idx] !== valorSelecionado ? 0.3 : 1,
+              borderColor: labels[idx] === valorSelecionado ? '#000' : undefined,
+              borderWidth: labels[idx] === valorSelecionado ? 2 : 0,
+              shadowBlur: labels[idx] === valorSelecionado ? 12 : 0,
+              shadowColor: labels[idx] === valorSelecionado ? 'rgba(0,0,0,0.5)' : 'transparent'
+            }
+          })),
+          label: config.performance.labelConfig,
+          showBackground: true
+        }]
+      });
+    };
+
     chart.setOption({
       title: { text: config.chartTitles.performance, left: 'center' },
       tooltip: {
@@ -306,45 +487,97 @@ window.addEventListener('DOMContentLoaded', async () => {
         axisLabel: { rotate: config.performance.axisLabelRotate }
       },
       yAxis: { type: 'value', name: config.performance.yAxisName },
-      series: [{
-        type: 'bar',
-        data: data.map(i => ({
-          value: i.value,
-          itemStyle: { color: config.performance.colorScale(i.value) }
-        })),
-        label: config.performance.labelConfig,
-        showBackground: true
-      }]
+      series: []
     });
 
-    chart.on('click', p => aplicarFiltro('atendente', p.name));
-    chart.getZr().on('dblclick', limparFiltros);
+    updateVisual(null);
+
+    chart.on('click', p => {
+      const valor = p.name;
+      if (ultimosFiltrosClicados[campo] === valor) {
+        ultimosFiltrosClicados[campo] = null;
+        limparFiltros();
+        updateVisual(null);
+      } else {
+        ultimosFiltrosClicados[campo] = valor;
+        aplicarFiltro(campo, valor, ['tabela', 'estatisticas', 'priority', 'satisfaction', 'timeline']);
+        updateVisual(valor);
+      }
+    });
+
+    chart.getZr().on('dblclick', () => {
+      limparFiltros(campo);
+      ultimosFiltrosClicados[campo] = null;
+      updateVisual(null);
+    });
   }
 
   function gerarChartPriority(dados) {
     const chart = echarts.init(document.getElementById(config.elements.priority));
+    const campo = 'prioridade';
+
+    const getData = (valorSelecionado) => config.priority.labels.map(p => ({
+      value: dados.filter(d => d.prioridade === p).length,
+      name: p,
+      itemStyle: {
+        color: config.priority.colors[p],
+        opacity: valorSelecionado && p !== valorSelecionado ? 0.3 : 1,
+        borderColor: p === valorSelecionado ? '#000' : undefined,
+        borderWidth: p === valorSelecionado ? 2 : 0,
+        shadowBlur: p === valorSelecionado ? 12 : 0,
+        shadowColor: p === valorSelecionado ? 'rgba(0,0,0,0.5)' : 'transparent'
+      }
+    }));
+
     chart.setOption({
       title: { text: config.chartTitles.priority, left: 'center' },
       tooltip: { trigger: 'item' },
       series: [{
         type: 'pie',
         radius: config.priority.radius,
-        data: config.priority.labels.map(p => ({
-          value: dados.filter(d => d.prioridade === p).length,
-          name: p,
-          itemStyle: { color: config.priority.colors[p] }
-        })),
-        emphasis: { itemStyle: config.priority.shadow },
+        data: getData(null),
+        selectedMode: 'single',
         label: config.priority.labelFormat
       }]
     });
 
-    chart.on('click', p => aplicarFiltro('prioridade', p.name));
-    chart.getZr().on('dblclick', limparFiltros);
+    chart.on('click', p => {
+      const valor = p.name;
+      if (ultimosFiltrosClicados[campo] === valor) {
+        ultimosFiltrosClicados[campo] = null;
+        limparFiltros();
+        chart.setOption({ series: [{ data: getData(null) }] });
+      } else {
+        ultimosFiltrosClicados[campo] = valor;
+        aplicarFiltro(campo, valor, ['tabela', 'estatisticas', 'performance', 'satisfaction', 'timeline']);
+        chart.setOption({ series: [{ data: getData(valor) }] });
+      }
+    });
+
+    chart.getZr().on('dblclick', () => {
+      limparFiltros(campo);
+      ultimosFiltrosClicados[campo] = null;
+      chart.setOption({ series: [{ data: getData(null) }] });
+    });
   }
 
   function gerarChartSatisfaction(dados) {
     const chart = echarts.init(document.getElementById(config.elements.satisfaction));
+    const campo = 'nota';
+
+    const getData = (valorSelecionado) => config.satisfaction.notas.map(n => ({
+      value: dados.filter(d => d.nota === n).length,
+      name: n,
+      itemStyle: {
+        color: config.satisfaction.colors[n],
+        opacity: valorSelecionado && n !== valorSelecionado ? 0.3 : 1,
+        borderColor: n === valorSelecionado ? '#000' : undefined,
+        borderWidth: n === valorSelecionado ? 2 : 0,
+        shadowBlur: n === valorSelecionado ? 12 : 0,
+        shadowColor: n === valorSelecionado ? 'rgba(0,0,0,0.5)' : 'transparent'
+      }
+    }));
+
     chart.setOption({
       title: { text: config.chartTitles.satisfaction, left: 'center' },
       tooltip: { trigger: 'item' },
@@ -352,27 +585,41 @@ window.addEventListener('DOMContentLoaded', async () => {
         type: 'pie',
         roseType: 'radius',
         radius: config.satisfaction.radius,
-        data: config.satisfaction.notas.map(n => ({
-          value: dados.filter(d => d.nota === n).length,
-          name: n,
-          itemStyle: { color: config.satisfaction.colors[n] }
-        })),
+        data: getData(null),
+        selectedMode: 'single',
         label: config.satisfaction.labelFormat,
         labelLine: config.satisfaction.labelLine
       }]
     });
 
-    chart.on('click', p => aplicarFiltro('nota', p.name));
-    chart.getZr().on('dblclick', limparFiltros);
+    chart.on('click', p => {
+      const valor = p.name;
+      if (ultimosFiltrosClicados[campo] === valor) {
+        ultimosFiltrosClicados[campo] = null;
+        limparFiltros();
+        chart.setOption({ series: [{ data: getData(null) }] });
+      } else {
+        ultimosFiltrosClicados[campo] = valor;
+        aplicarFiltro(campo, valor, ['tabela', 'estatisticas', 'performance', 'priority', 'timeline']);
+        chart.setOption({ series: [{ data: getData(valor) }] });
+      }
+    });
+
+    chart.getZr().on('dblclick', () => {
+      limparFiltros(campo);
+      ultimosFiltrosClicados[campo] = null;
+      chart.setOption({ series: [{ data: getData(null) }] });
+    });
   }
 
-  // 🚀 Inicialização
+  // Inicialização
   try {
     const response = await fetch(config.jsonPath);
     const dados = await response.json();
     window.__dadosDashboard = dados;
     atualizarPeriodo(dados);
-    atualizarDashboard();
+    await atualizarDashboard(); 
+    inicializarFiltrosHTML(); 
 
     document.getElementById(config.elements.priorityFilter)?.addEventListener('change', function () {
       aplicarFiltro('prioridade', this.value);

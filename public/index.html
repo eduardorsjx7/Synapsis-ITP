@@ -18,12 +18,13 @@
 <body>
   <h1>Dashboard de Atendimentos</h1>
   <div id="periodo"></div>
-  <div id="filtrosDinamicos"></div>
 
-  <div id="estatisticas"></div>
-  <div id="tabelaEstatisticas" class="dashboard-container"></div>
-  <div id="tabelaPerformance" class="dashboard-container"></div>
-  <div id="tabelaTodosOsDados" class="dashboard-container"></div>
+  <!-- Filtros definidos pelo programador -->
+  <div id="filtrosDinamicos">
+    <select data-campo="atendente" data-aplica-em="estatisticas,tabela,performance"></select>
+    <select data-campo="prioridade" data-aplica-em="tabela"></select>
+    <select data-campo="nota" data-aplica-em="satisfaction,tabela"></select>
+  </div>
 
   <div class="charts">
     <div id="chartEstatistica" style="height: 300px;"></div>
@@ -33,9 +34,14 @@
     <div id="chartSatisfaction" style="height: 300px;"></div>
   </div>
 
+  <div id="estatisticas"></div>
+  <div id="tabelaEstatisticas" class="dashboard-container"></div>
+  <div id="tabelaPerformance" class="dashboard-container"></div>
+  <div id="tabelaTodosOsDados" class="dashboard-table"></div>
+
   <script>
     window.dashboardConfig = {
-      jsonPath: './data/dados_atendimento.json', // Substitua por caminho real
+      jsonPath: './data/dados_atendimento.json',
       campos: {
         grupo: 'atendente',
         valor: 'tempo_resolucao_hrs'
@@ -99,6 +105,6 @@
       }
     };
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/synapsis-itp@1.4.1/dist/index.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/synapsis-itp@1.6.0/dist/index.umd.js"></script>
 </body>
 </html>
