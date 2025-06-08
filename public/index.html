@@ -10,33 +10,60 @@
     .dashboard-container { margin-bottom: 30px; }
     .dashboard-table { width: 100%; border-collapse: collapse; background: #fff; }
     .dashboard-table th, .dashboard-table td { padding: 8px 12px; border: 1px solid #ccc; }
-    select { margin: 5px; padding: 5px; }
+    select, input[type="date"], button { margin: 5px; padding: 5px; font-size: 14px; }
     .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
     #estatisticas { background: #fff; padding: 10px; margin-top: 10px; }
+    #filtros-container { padding: 10px; background-color: #fff; border-radius: 5px; margin-bottom: 20px; }
   </style>
 </head>
 <body>
   <h1>Dashboard de Atendimentos</h1>
   <div id="periodo"></div>
 
-  <!-- Filtros definidos pelo programador -->
-  <div id="filtrosDinamicos">
-    <select data-campo="atendente" data-aplica-em="estatisticas,tabela,performance"></select>
-    <select data-campo="prioridade" data-aplica-em="tabela"></select>
-    <select data-campo="nota" data-aplica-em="satisfaction,tabela"></select>
+  <div id="filtros-container">
+    <div id="filtrosDinamicos">
+      <select data-campo="atendente" data-aplica-em="estatisticas,tabela,performance,priority,satisfaction,timeline"></select>
+      <select data-campo="prioridade" data-aplica-em="estatisticas,tabela,performance,priority,satisfaction,timeline"></select>
+      <select data-campo="nota" data-aplica-em="estatisticas,tabela,performance,priority,satisfaction,timeline"></select>
+    </div>
+
+    <div id="filtroPorPeriodo" style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px;">
+      <strong>Filtro Mestre por Período:</strong><br>
+      <label for="filtro-data-inicio">De:</label>
+      <input type="date" id="filtro-data-inicio">
+      
+      <label for="filtro-data-fim" style="margin-left: 10px;">Até:</label>
+      <input type="date" id="filtro-data-fim">
+      
+      <button id="btn-aplicar-periodo" style="margin-left: 10px;">Aplicar Período</button>
+      <button id="btn-limpar-periodo">Limpar Período</button>
+    </div>
   </div>
+
 
   <div class="charts">
     <div id="chartEstatistica" style="height: 300px;"></div>
-    <div id="chartTimeline" style="height: 300px;"></div>
-    <div id="chartPerformance" style="height: 300px;"></div>
-    <div id="chartPriority" style="height: 300px;"></div>
-    <div id="chartSatisfaction" style="height: 300px;"></div>
+    
+    <div id="chartTimeline" style="height: 300px;"
+         data-campo="codigo_atendimento" 
+         data-aplica-em="tabela,estatisticas">
+    </div>
+    <div id="chartPerformance" style="height: 300px;"
+         data-campo="atendente"
+         data-aplica-em="tabela,estatisticas,priority,satisfaction,timeline">
+    </div>
+    <div id="chartPriority" style="height: 300px;"
+         data-campo="prioridade"
+         data-aplica-em="tabela,estatisticas,performance,satisfaction,timeline">
+    </div>
+    <div id="chartSatisfaction" style="height: 300px;"
+         data-campo="nota"
+         data-aplica-em="tabela,estatisticas,performance,priority,timeline">
+    </div>
   </div>
 
   <div id="estatisticas"></div>
   <div id="tabelaEstatisticas" class="dashboard-container"></div>
-  <div id="tabelaPerformance" class="dashboard-container"></div>
   <div id="tabelaTodosOsDados" class="dashboard-table"></div>
 
   <script>
@@ -44,7 +71,8 @@
       jsonPath: './data/dados_atendimento.json',
       campos: {
         grupo: 'atendente',
-        valor: 'tempo_resolucao_hrs'
+        valor: 'tempo_resolucao_hrs',
+        dataPrincipal: 'data_solicitacao' 
       },
       elements: {
         periodo: 'periodo',
@@ -52,8 +80,7 @@
         timeline: 'chartTimeline',
         performance: 'chartPerformance',
         priority: 'chartPriority',
-        satisfaction: 'chartSatisfaction',
-        priorityFilter: 'filtroPrioridade'
+        satisfaction: 'chartSatisfaction'
       },
       timeline: {
         title: 'Tempo de Atendimento por Código',
@@ -82,10 +109,7 @@
         radius: '60%',
         labels: ['Baixa', 'Média', 'Alta', 'Urgente'],
         colors: {
-          Baixa: '#8bc34a',
-          Média: '#ffeb3b',
-          Alta: '#ff9800',
-          Urgente: '#f44336'
+          Baixa: '#8bc34a', Média: '#ffeb3b', Alta: '#ff9800', Urgente: '#f44336'
         },
         shadow: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' },
         labelFormat: { formatter: '{b}: {d}%' }
@@ -94,17 +118,14 @@
         radius: [30, 100],
         notas: ['Ruim', 'Regular', 'Bom', 'Ótimo', 'Excelente'],
         colors: {
-          Ruim: '#e53935',
-          Regular: '#fb8c00',
-          Bom: '#fdd835',
-          Ótimo: '#43a047',
-          Excelente: '#1e88e5'
+          Ruim: '#e53935', Regular: '#fb8c00', Bom: '#fdd835', Ótimo: '#43a047', Excelente: '#1e88e5'
         },
         labelFormat: { formatter: '{b}: {c}' },
         labelLine: { smooth: 0.2, length: 10, length2: 20 }
       }
     };
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/synapsis-itp@1.6.0/dist/index.umd.js"></script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/synapsis-itp@1.7.4/dist/index.umd.js"></script>
 </body>
 </html>
