@@ -2,6 +2,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const config = window.dashboardConfig;
   const currentFilters = {};
   const ultimosFiltrosClicados = {};
+  const chartInstances = {}; // NOVO: Objeto para armazenar as instâncias dos gráficos
 
   // ===================================================================
   // FUNÇÕES DE CÁLCULO E UTILIDADES
@@ -36,36 +37,32 @@ window.addEventListener('DOMContentLoaded', async () => {
     const container = document.getElementById(containerId);
     if (!container) return;
     
-    // Remove o botão antigo se ele já existir, para evitar duplicatas
-    const botaoExistente = container.querySelector('button.export-csv-button');
+    const botaoExistente = container.querySelector('button.export-button');
     if(botaoExistente) botaoExistente.remove();
 
     const botao = document.createElement('button');
-    botao.textContent = 'Exportar para CSV';
-    botao.className = 'export-csv-button'; // Adiciona uma classe para facilitar a busca
-    botao.onclick = () => exportarTabelaParaCSV(tabelaId, `${tabelaId}.csv`);
+    botao.textContent = 'Exportar para XLSX'; // Texto do botão atualizado
+    botao.className = 'export-button';
     
-    // Adiciona o botão ao final do container
+    // Chama a nova função de exportação para XLSX
+    botao.onclick = () => exportarParaXLSX(tabelaId, `${tabelaId}.xlsx`);
+    
     container.appendChild(botao);
   }
 
-  function exportarTabelaParaCSV(tabelaId, nomeArquivo = 'dados.csv') {
+  function exportarParaXLSX(tabelaId, nomeArquivo) {
+    // A função agora usa a biblioteca XLSX (SheetJS)
     const tabela = document.getElementById(tabelaId)?.querySelector('table');
-    if (!tabela) return;
-    let csv = [];
-    const linhas = tabela.querySelectorAll('tr');
-    linhas.forEach(linha => {
-      const colunas = linha.querySelectorAll('th, td');
-      const linhaCSV = Array.from(colunas).map(td => `"${td.textContent.replace(/"/g, '""')}"`);
-      csv.push(linhaCSV.join(','));
-    });
-    const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nomeArquivo;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (!tabela) {
+      console.error('Tabela não encontrada para exportação:', tabelaId);
+      return;
+    }
+
+    // 1. Converte o elemento da tabela HTML em um "workbook" do Excel
+    const workbook = XLSX.utils.table_to_book(tabela);
+
+    // 2. Gera o arquivo .xlsx e inicia o download
+    XLSX.writeFile(workbook, nomeArquivo || 'dados.xlsx');
   }
 
   // ===================================================================
@@ -75,6 +72,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   function gerarTabela(containerId, headers, data) {
     const container = document.getElementById(containerId);
     if (!container) return;
+
+    // NOVO: Cria um 'wrapper' para a tabela. Este wrapper terá a barra de rolagem.
+    const tableWrapper = document.createElement('div');
+    tableWrapper.className = 'table-responsive-wrapper';
+
     const table = document.createElement('table');
     table.className = 'dashboard-table';
     const thead = document.createElement('thead');
@@ -97,8 +99,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
     table.appendChild(thead);
     table.appendChild(tbody);
+
+    // NOVO: Adiciona a tabela ao wrapper, e o wrapper ao container principal.
+    tableWrapper.appendChild(table);
     container.innerHTML = '';
-    container.appendChild(table);
+    container.appendChild(tableWrapper);
   }
 
   function gerarTabelaEstatisticas(stats) {
@@ -126,26 +131,37 @@ window.addEventListener('DOMContentLoaded', async () => {
   function gerarChartEstatisticas(estatisticas) {
     const container = document.getElementById(config.elements.estatistica);
     if (!container) return;
-    const chart = echarts.init(container);
+    let chart = chartInstances.estatistica;
+    if (!chart) {
+        chart = echarts.init(container);
+        chartInstances.estatistica = chart;
+        window.addEventListener('resize', () => chart.resize());
+    }
     const categorias = ['Média', 'Mediana', 'Moda', 'Mínimo', 'Máximo', 'Desvio Padrão'];
     const valores = [
       estatisticas.media, estatisticas.mediana, parseFloat(estatisticas.moda[0] || 0),
       estatisticas.minimo, estatisticas.maximo, estatisticas.desvioPadrao
     ];
     chart.setOption({
-      title: { text: 'Indicadores Estatísticos', left: 'center' },
       tooltip: { trigger: 'axis', formatter: params => `<strong>${params[0].name}</strong>: ${params[0].value ? params[0].value.toFixed(2) : '0.00'} hrs` },
       xAxis: { type: 'category', data: categorias },
       yAxis: { type: 'value', name: 'Valor' },
-      series: [{ type: 'bar', data: valores, itemStyle: { color: '#4dc9f6' }, label: { show: true, position: 'top', formatter: p => p.value ? p.value.toFixed(2) : '0.00' } }]
+      series: [{ type: 'bar', data: valores, itemStyle: { color: '#4dc9f6' }, label: { show: true, position: 'top', formatter: p => p.value ? p.value.toFixed(2) : '0.00' } }],
+      animationDurationUpdate: 300,
+      animationEasingUpdate: 'cubicInOut'
     });
-    window.addEventListener('resize', () => chart.resize());
   }
 
   function gerarChartTimeline(dados) {
     const container = document.getElementById(config.elements.timeline);
     if (!container) return;
-    const chart = echarts.init(container);
+    let chart = chartInstances.timeline;
+    if (!chart) {
+        chart = echarts.init(container);
+        chartInstances.timeline = chart;
+        adicionarInteratividadeGrafico(chart, container);
+        window.addEventListener('resize', () => chart.resize());
+    }
     const xData = dados.map(i => i.codigo_atendimento);
     const inicioData = dados.map(i => i.tempo_inicio_hrs);
     const resolucaoData = dados.map(i => i.tempo_resolucao_hrs - i.tempo_inicio_hrs);
@@ -156,76 +172,101 @@ window.addEventListener('DOMContentLoaded', async () => {
       yAxis: { type: 'value', name: config.timeline.yAxisName },
       legend: { data: Object.values(config.timeline.seriesNames), left: config.timeline.legendPosition },
       series: [
-        { name: config.timeline.seriesNames.inicio, type: 'bar', stack: 'total', itemStyle: { color: config.timeline.colors.inicio }, data: inicioData },
-        { name: config.timeline.seriesNames.resolucao, type: 'bar', stack: 'total', itemStyle: { color: config.timeline.colors.resolucao }, data: resolucaoData }
-      ]
+        { name: config.timeline.seriesNames.inicio, type: 'bar', stack: 'total', emphasis: { disabled: true }, itemStyle: { color: config.timeline.colors.inicio }, data: inicioData },
+        { name: config.timeline.seriesNames.resolucao, type: 'bar', stack: 'total', emphasis: { disabled: true }, itemStyle: { color: config.timeline.colors.resolucao }, data: resolucaoData }
+      ],
+      animationDurationUpdate: 500,
+      animationEasingUpdate: 'cubicInOut'
     });
-    const getValue = params => xData[params.dataIndex];
-    adicionarInteratividadeGrafico(chart, container, (valorSelecionado) => {
-      chart.setOption({ series: [{ data: inicioData.map((v, i) => ({ value: v, itemStyle: { opacity: valorSelecionado && xData[i] !== valorSelecionado ? 0.3 : 1 } })) }, { data: resolucaoData.map((v, i) => ({ value: v, itemStyle: { opacity: valorSelecionado && xData[i] !== valorSelecionado ? 0.3 : 1 } })) }] });
-    }, getValue);
-    window.addEventListener('resize', () => chart.resize());
   }
 
   function gerarChartPerformance(data, labels) {
     const container = document.getElementById(config.elements.performance);
     if (!container) return;
-    const chart = echarts.init(container);
+    let chart = chartInstances.performance;
+    if (!chart) {
+        chart = echarts.init(container);
+        chartInstances.performance = chart;
+        adicionarInteratividadeGrafico(chart, container);
+        window.addEventListener('resize', () => chart.resize());
+    }
+    const seriesData = data.map((item, idx) => ({
+        value: item.value,
+        itemStyle: {
+            color: config.performance.colorScale(item.value),
+            opacity: !ultimosFiltrosClicados.atendente || ultimosFiltrosClicados.atendente === labels[idx] ? 1 : 0.3,
+            borderColor: ultimosFiltrosClicados.atendente === labels[idx] ? '#000' : undefined,
+            borderWidth: ultimosFiltrosClicados.atendente === labels[idx] ? 2 : 0
+        }
+    }));
     chart.setOption({
       title: { text: config.chartTitles.performance, left: 'center' },
       tooltip: { formatter: p => data.length > 0 ? config.performance.tooltipFormatter(data[p.dataIndex]) : '' },
       xAxis: { type: 'category', data: labels, axisLabel: { rotate: config.performance.axisLabelRotate } },
       yAxis: { type: 'value', name: config.performance.yAxisName },
-      series: [{ type: 'bar', label: config.performance.labelConfig, showBackground: true, data: data.map(i => i.value) }]
+      series: [{ type: 'bar', emphasis: { disabled: true }, label: config.performance.labelConfig, showBackground: true, data: seriesData }],
+      animationDurationUpdate: 500,
+      animationEasingUpdate: 'cubicInOut'
     });
-    adicionarInteratividadeGrafico(chart, container, (valorSelecionado) => {
-      chart.setOption({ series: [{ data: data.map((item, idx) => ({ value: item.value, itemStyle: { color: config.performance.colorScale(item.value), opacity: valorSelecionado && labels[idx] !== valorSelecionado ? 0.3 : 1, borderColor: labels[idx] === valorSelecionado ? '#000' : undefined, borderWidth: labels[idx] === valorSelecionado ? 2 : 0 } })) }] });
-    }, params => params.name);
-    window.addEventListener('resize', () => chart.resize());
   }
 
   function gerarChartPriority(dados) {
     const container = document.getElementById(config.elements.priority);
     if (!container) return;
-    const chart = echarts.init(container);
-    const updateVisual = (valorSelecionado) => {
-      const chartData = config.priority.labels.map(p => ({
+    let chart = chartInstances.priority;
+    if (!chart) {
+        chart = echarts.init(container);
+        chartInstances.priority = chart;
+        adicionarInteratividadeGrafico(chart, container);
+        window.addEventListener('resize', () => chart.resize());
+    }
+    const valorSelecionado = ultimosFiltrosClicados.prioridade;
+    const chartData = config.priority.labels.map(p => ({
         value: dados.filter(d => d.prioridade === p).length, name: p,
-        itemStyle: { color: config.priority.colors[p], opacity: valorSelecionado && p !== valorSelecionado ? 0.3 : 1, borderColor: p === valorSelecionado ? '#000' : undefined, borderWidth: p === valorSelecionado ? 2 : 0 }
-      }));
-      chart.setOption({ series: [{ data: chartData }] });
-    };
+        itemStyle: { color: config.priority.colors[p], opacity: !valorSelecionado || p === valorSelecionado ? 1 : 0.3, borderColor: p === valorSelecionado ? '#000' : undefined, borderWidth: p === valorSelecionado ? 2 : 0 }
+    }));
+
+    // CORREÇÃO: Verifica de forma segura se o estado da legenda já existe antes de tentar usá-lo.
+    const legendaPrevia = chart.getOption()?.legend?.[0]?.selected;
+
     chart.setOption({
       title: { text: config.chartTitles.priority, left: 'center' },
       tooltip: { trigger: 'item' },
-      series: [{ type: 'pie', radius: config.priority.radius, selectedMode: 'single', label: config.priority.labelFormat, data: [] }]
+      legend: { show: true, bottom: 0, selected: legendaPrevia || null },
+      series: [{ type: 'pie', radius: config.priority.radius, selectedMode: 'single', emphasis: { disabled: true }, label: config.priority.labelFormat, data: chartData }],
+      animationDurationUpdate: 300,
+      animationEasingUpdate: 'cubicInOut'
     });
-    updateVisual(null);
-    adicionarInteratividadeGrafico(chart, container, updateVisual, params => params.name);
-    window.addEventListener('resize', () => chart.resize());
   }
 
   function gerarChartSatisfaction(dados) {
     const container = document.getElementById(config.elements.satisfaction);
     if (!container) return;
-    const chart = echarts.init(container);
-    const updateVisual = (valorSelecionado) => {
-      const chartData = config.satisfaction.notas.map(n => ({
-        value: dados.filter(d => d.nota === n).length, name: n,
-        itemStyle: { color: config.satisfaction.colors[n], opacity: valorSelecionado && n !== valorSelecionado ? 0.3 : 1, borderColor: n === valorSelecionado ? '#000' : undefined, borderWidth: n === valorSelecionado ? 2 : 0 }
-      }));
-      chart.setOption({ series: [{ data: chartData }] });
-    };
+    let chart = chartInstances.satisfaction;
+    if (!chart) {
+        chart = echarts.init(container);
+        chartInstances.satisfaction = chart;
+        adicionarInteratividadeGrafico(chart, container);
+        window.addEventListener('resize', () => chart.resize());
+    }
+    const valorSelecionado = ultimosFiltrosClicados.nota;
+    const chartData = config.satisfaction.notas.map(n => ({
+      value: dados.filter(d => d.nota === n).length, name: n,
+      itemStyle: { color: config.satisfaction.colors[n], opacity: !valorSelecionado || n === valorSelecionado ? 1 : 0.3, borderColor: n === valorSelecionado ? '#000' : undefined, borderWidth: n === valorSelecionado ? 2 : 0 }
+    }));
+
+    // CORREÇÃO: Verifica de forma segura se o estado da legenda já existe antes de tentar usá-lo.
+    const legendaPrevia = chart.getOption()?.legend?.[0]?.selected;
+
     chart.setOption({
       title: { text: config.chartTitles.satisfaction, left: 'center' },
       tooltip: { trigger: 'item' },
-      series: [{ type: 'pie', roseType: 'radius', radius: config.satisfaction.radius, selectedMode: 'single', label: config.satisfaction.labelFormat, labelLine: config.satisfaction.labelLine, data: [] }]
+      legend: { show: true, bottom: 0, selected: legendaPrevia || null },
+      series: [{ type: 'pie', roseType: 'radius', radius: config.satisfaction.radius, selectedMode: 'single', emphasis: { disabled: true }, label: config.satisfaction.labelFormat, labelLine: config.satisfaction.labelLine, data: chartData }],
+      animationDurationUpdate: 300,
+      animationEasingUpdate: 'cubicInOut'
     });
-    updateVisual(null);
-    adicionarInteratividadeGrafico(chart, container, updateVisual, params => params.name);
-    window.addEventListener('resize', () => chart.resize());
   }
-
   // ===================================================================
   // FUNÇÕES DE CONTROLE E PROCESSAMENTO DE DADOS
   // ===================================================================
@@ -252,31 +293,57 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  async function aplicarFiltro(campo, valor) {
+  async function aplicarFiltro(campo, valor, secoes) {
     currentFilters[campo] = valor;
-    await atualizarDashboard();
+    await atualizarAposFiltro(secoes);
   }
   window.aplicarFiltro = aplicarFiltro;
   
-  function limparFiltros(campoAlvo = null) {
+  async function limparFiltros(campoAlvo = null) {
+    const secoesAfetadas = campoAlvo ? document.querySelector(`[data-campo="${campoAlvo}"]`)?.dataset.aplicaEm?.split(',').map(s => s.trim()) : null;
+
     if (campoAlvo) {
       delete currentFilters[campoAlvo];
-      if (ultimosFiltrosClicados[campoAlvo]) {
-        ultimosFiltrosClicados[campoAlvo] = null;
-      }
+      delete ultimosFiltrosClicados[campoAlvo];
     } else {
       Object.keys(currentFilters).forEach(key => {
-        if (key !== 'periodo') {
-          delete currentFilters[key];
-        }
+        if (key !== 'periodo') delete currentFilters[key];
       });
-      Object.keys(ultimosFiltrosClicados).forEach(key => {
-        ultimosFiltrosClicados[key] = null;
-      });
+      Object.keys(ultimosFiltrosClicados).forEach(key => delete ultimosFiltrosClicados[key]);
     }
-    atualizarDashboard();
+    
+    await atualizarAposFiltro(secoesAfetadas);
+  }
+  
+  async function atualizarAposFiltro(secoes) {
+    const { dadosFiltrados, performance, grupos } = await processarDadosLeve(window.__dadosDashboard);
+
+    if (secoes && Array.isArray(secoes)) {
+      secoes.forEach(secao => atualizarSecao(secao, dadosFiltrados, performance, grupos));
+    } else {
+      await atualizarDashboard(dadosFiltrados, performance, grupos);
+    }
   }
 
+  function atualizarSecao(secao, dadosFiltrados, performance, grupos) {
+    const headers = Object.keys(window.__dadosDashboard[0] || {});
+    switch (secao) {
+      case 'estatisticas': exibirEstatisticas(dadosFiltrados); break;
+      case 'timeline': gerarChartTimeline(dadosFiltrados); break;
+      case 'performance':
+        gerarChartPerformance(performance, grupos);
+        break;
+      case 'priority': gerarChartPriority(dadosFiltrados); break;
+      case 'satisfaction': gerarChartSatisfaction(dadosFiltrados); break;
+      case 'tabela': gerarTabelaTodosOsDados(headers, dadosFiltrados); break;
+      case 'filtros':
+        // A geração de filtros é centralizada no atualizarDashboard
+        break;
+      default:
+        console.warn(`Tentativa de atualizar seção desconhecida: ${secao}`);
+    }
+  }
+  
   function processarDadosLeve(dados) {
     return new Promise(resolve => {
       const { grupo, valor, dataPrincipal } = config.campos || {};
@@ -354,8 +421,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  async function atualizarDashboard() {
-    const { dadosFiltrados, performance, grupos } = await processarDadosLeve(window.__dadosDashboard);
+  async function atualizarDashboard(dadosFiltrados, performance, grupos) {
     exibirEstatisticas(dadosFiltrados);
     gerarChartTimeline(dadosFiltrados);
     gerarChartPerformance(performance, grupos);
@@ -381,11 +447,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     gerarFiltrosAutomaticos(dadosParaFiltros);
   }
-  window.atualizarDashboard = atualizarDashboard;
   
-  function adicionarInteratividadeGrafico(chart, container, updateVisual, getValueFromParams) {
+  function adicionarInteratividadeGrafico(chart, container) {
     const campo = container.dataset.campo;
+    const secoesAfetadas = container.dataset.aplicaEm?.split(',').map(s => s.trim());
     if (!campo) return;
+    
+    const getValueFromParams = (p) => {
+        if (p.componentType === 'series' && p.seriesType === 'bar') {
+            return p.name || chart.getOption().xAxis[0].data[p.dataIndex];
+        }
+        if (p.componentType === 'series' && p.seriesType === 'pie') {
+            return p.name;
+        }
+        return null;
+    };
+
     chart.on('click', p => {
       if (!currentFilters.periodo) {
         alert("Por favor, defina um período antes de interagir com os gráficos.");
@@ -393,15 +470,27 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
       const valor = getValueFromParams(p);
       if (valor === undefined || valor === null) return;
+      
+      const isPie = chart.getOption().series[0].type === 'pie';
+      
       if (ultimosFiltrosClicados[campo] === valor) {
+        if (isPie) chart.dispatchAction({ type: 'legendAllSelect' });
         limparFiltros(campo);
       } else {
         ultimosFiltrosClicados[campo] = valor;
-        aplicarFiltro(campo, valor);
+        if (isPie) {
+            chart.dispatchAction({ type: 'legendUnSelect', name: ''}); // Workaround
+            chart.dispatchAction({ type: 'legendSelect', name: valor });
+        }
+        aplicarFiltro(campo, valor, secoesAfetadas);
       }
     });
+
     chart.getZr().on('dblclick', () => {
       if (ultimosFiltrosClicados[campo]) {
+        if (chart.getOption().series[0].type === 'pie') {
+            chart.dispatchAction({ type: 'legendAllSelect' });
+        }
         limparFiltros(campo);
       }
     });
@@ -458,7 +547,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     const btnLimpar = document.getElementById('btn-limpar-periodo');
     if (!dataInicioEl || !dataFimEl || !btnAplicar || !btnLimpar) return;
 
-    btnAplicar.addEventListener('click', () => {
+    btnAplicar.addEventListener('click', async () => {
       const inicio = dataInicioEl.value;
       const fim = dataFimEl.value;
       if (!inicio || !fim) {
@@ -472,7 +561,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       currentFilters.periodo = { inicio, fim };
       const periodoEl = document.getElementById(config.elements.periodo);
       if(periodoEl) periodoEl.textContent = `Período: ${inicio} a ${fim}`;
-      atualizarDashboard();
+      const { dadosFiltrados, performance, grupos } = await processarDadosLeve(window.__dadosDashboard);
+      await atualizarDashboard(dadosFiltrados, performance, grupos);
     });
 
     btnLimpar.addEventListener('click', () => {
@@ -492,6 +582,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         const select = e.target;
         const campo = select.dataset.campo;
         const valor = select.value;
+        const secoes = select.dataset.aplicaEm?.split(',').map(s => s.trim());
   
         if (!currentFilters.periodo) {
           alert("Por favor, defina um período antes de aplicar outros filtros.");
@@ -499,7 +590,7 @@ window.addEventListener('DOMContentLoaded', async () => {
           return;
         }
         
-        aplicarFiltro(campo, valor);
+        aplicarFiltro(campo, valor, secoes);
       }
     });
   }
