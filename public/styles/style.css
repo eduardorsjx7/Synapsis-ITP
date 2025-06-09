@@ -1,0 +1,186 @@
+:root {
+    --cor-fundo: #f1f5f9;
+    --cor-card: #ffffff;
+    --cor-texto: #334155;
+    --cor-borda: #e2e8f0;
+    --cor-sombra: rgba(100, 116, 139, 0.1);
+    --cor-primaria: #3b82f6;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: var(--cor-fundo);
+    color: var(--cor-texto);
+}
+
+.container {
+    display: grid;
+    justify-content: center;
+}
+
+.dashboard-wrapper {
+  display: inline-block;
+  margin: 1.5rem auto;
+  border-radius: 0.5rem;
+  background-color: var(--cor-card);
+  box-shadow: 0 4px 6px -1px var(#0d1117), 0 2px 4px -2px var(#0d1117);
+  border: 1px solid #0d1117;
+}
+
+
+header {
+    display: grid;
+    margin-bottom: 3rem;
+    padding: 2vh 4vh;
+    background-color: #0d1117;
+    color: white;
+    border-top-left-radius: 0.5rem;
+    border-top-right-radius: 0.5rem;
+
+    .card {
+        background: none;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+    }
+}
+
+#filtros-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 400;
+}
+
+h1 {
+    font-size: 1.875rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+#periodo {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin-bottom: 1.5rem;
+}
+
+.card {
+    padding: 1.5rem;
+}
+
+.dashboard-grid {
+    width: 100%;
+    max-width: 1450px;
+    display: flex;
+    flex-direction: column; 
+}
+
+.line-dashboard {
+  display: flex;    
+  justify-content: space-between;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#chartPerformance {
+    width: 110vh;
+}
+
+/* Layout para telas maiores */
+@media (min-width: 1024px) {
+    .dashboard-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .span-col-3 {
+    grid-column: span 3 / span 3;
+    }
+    .span-col-2 {
+    grid-column: span 2 / span 2;
+    }
+}
+
+@media (min-width: 1720px) {
+    .dashboard-grid {
+        max-width: 1674px;
+    }
+
+    #chartPerformance {
+        width: 85vh;
+    }
+}
+
+@media (min-width: 1820px) {
+    .dashboard-grid {
+        max-width: 1774px;
+    }
+
+    #chartPerformance {
+        width: 85vh;
+    }
+}
+
+@media (min-width: 1920px) {
+    .dashboard-grid {
+        max-width: 1874px;
+    }
+
+    #chartPerformance {
+        width: 85vh;
+    }
+}
+
+select, input[type="date"], button {
+    margin: 5px;
+    padding: 8px 12px;
+    font-size: 14px;
+    border-radius: 0.375rem;
+    border: 1px solid var(--cor-borda);
+}
+
+button {
+    background-color: var(--cor-primaria);
+    color: white;
+    font-weight: 500;
+    cursor: pointer;
+    border-color: transparent;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+h3.card-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+}
+
+.table-responsive-wrapper {
+    width: 100%;
+    overflow-x: auto; /* A mágica acontece aqui! */
+}
+
+.dashboard-table { 
+    width: 100%; 
+    border-collapse: collapse; 
+}
+
+.dashboard-table th, .dashboard-table td { 
+    padding: 12px 16px; 
+    border-bottom: 1px solid var(--cor-borda); 
+    text-align: left; 
+}
+
+.dashboard-table thead th { 
+    font-weight: 600; 
+    font-size: 0.75rem; 
+    text-transform: uppercase; 
+    color: #64748b; 
+}
